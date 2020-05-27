@@ -389,6 +389,7 @@
         "watertight": true,
         "rigid": true,
         "max_contains_volume": "2 L",
+        "max_item_volume": "17 ml",
         "max_contains_weight": "3 kg",
         "moves": 400
       }
@@ -1239,8 +1240,8 @@
         "pocket_type": "CONTAINER",
         "rigid": true,
         "watertight": true,
-        "max_contains_volume": "3 L",
-        "max_contains_weight": "6 kg"
+        "max_contains_volume": "50 L",
+        "max_contains_weight": "100 kg"
       }
     ],
     "qualities": [ [ "BOIL", 2 ], [ "CONTAIN", 1 ] ]
@@ -1265,8 +1266,8 @@
         "pocket_type": "CONTAINER",
         "rigid": true,
         "watertight": true,
-        "max_contains_volume": "3 L",
-        "max_contains_weight": "6 kg"
+        "max_contains_volume": "50 L",
+        "max_contains_weight": "120 kg"
       }
     ],
     "qualities": [ [ "BOIL", 2 ], [ "CONTAIN", 1 ] ]
@@ -1474,6 +1475,15 @@
     "color": "light_gray",
     "pocket_data": [ { "pocket_type": "CONTAINER", "max_contains_volume": "2500 ml", "max_contains_weight": "6 kg" } ],
     "flags": [ "TRADER_AVOID" ]
+  },
+  {
+    "id": "wrapper_pr",
+    "type": "GENERIC",
+    "name": { "str": "wrapper" },
+    "//desc": "Daizu is Japanese for soy, hence DaiZoom",
+    "description": "\"DaiZoom Protein Bar, brought to you by SoyPelusa\" is emblazoned proudly upon this greaseproof wrapper.",
+    "copy-from": "wrapper",
+    "pocket_data": [ { "pocket_type": "CONTAINER", "max_contains_volume": "225 ml", "max_contains_weight": "1 kg" } ]
   },
   {
     "id": "styrofoam_cup",
