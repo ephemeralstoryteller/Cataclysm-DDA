@@ -521,7 +521,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
     }
 
     std::vector<std::list<item_stack::iterator>> stacked_here;
-    for( item_stack::iterator it : here ) {
+    for( const item_stack::iterator &it : here ) {
         bool found_stack = false;
         for( std::list<item_stack::iterator> &stack : stacked_here ) {
             if( stack.front()->display_stacked_with( *it ) ) {
@@ -655,7 +655,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
                 draw_item_info( w_item_info, dummy );
             } else {
                 werase( w_item_info );
-                wrefresh( w_item_info );
+                wnoutrefresh( w_item_info );
             }
             draw_custom_border( w_item_info, 0 );
 
@@ -664,7 +664,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
             trim_and_print( w_item_info, point( 4, 0 ), pickupW - 8, selected_item.color_in_inventory(),
                             selected_item.display_name() );
             wprintw( w_item_info, " >" );
-            wrefresh( w_item_info );
+            wnoutrefresh( w_item_info );
 
             const std::string pickup_chars = ctxt.get_available_single_char_hotkeys( all_pickup_chars );
 
@@ -707,7 +707,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
                         // TODO: transition to the item_location system used for the inventory
                         unsigned int charges_total = 0;
                         for( const item_stack::iterator &it : stacked_here[true_it] ) {
-                            charges_total += it->charges;
+                            charges_total += it->ammo_remaining();
                         }
                         //Picking up none or all the cards in a stack
                         if( !getitem[true_it].pick || getitem[true_it].count == 0 ) {
@@ -718,7 +718,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
                             int c = getitem[true_it].count;
                             for( std::list<item_stack::iterator>::iterator it = stacked_here[true_it].begin();
                                  it != stacked_here[true_it].end() && c > 0; ++it, --c ) {
-                                charges += ( *it )->charges;
+                                charges += ( *it )->ammo_remaining();
                             }
                             item_name = stacked_here[true_it].front()->display_money( getitem[true_it].count, charges_total,
                                         charges );
@@ -777,7 +777,7 @@ void Pickup::pick_up( const tripoint &p, int min, from_where get_items_from )
                                            fmted_weight_predict, fmted_weight_capacity,
                                            fmted_volume_predict, fmted_volume_capacity ) );
 
-            wrefresh( w_pickup );
+            wnoutrefresh( w_pickup );
         } );
 
         // Now print the two lists; those on the ground and about to be added to inv

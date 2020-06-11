@@ -39,7 +39,7 @@
 #include "translations.h"
 #include "type_id.h"
 
-static const zone_type_id zone_type_camp_storage( "CAMP_STORAGE" );
+static const zone_type_id zone_type_CAMP_STORAGE( "CAMP_STORAGE" );
 
 const std::map<point, base_camps::direction_data> base_camps::all_directions = {
     // direction, direction id, tab order, direction abbreviation with bracket, direction tab title
@@ -611,8 +611,8 @@ void basecamp::form_crafting_inventory( map &target_map )
     if( g->m.check_vehicle_zones( g->get_levz() ) ) {
         mgr.cache_vzones();
     }
-    if( mgr.has_near( zone_type_camp_storage, dump_spot, 60 ) ) {
-        std::unordered_set<tripoint> src_set = mgr.get_near( zone_type_camp_storage, dump_spot, 60 );
+    if( mgr.has_near( zone_type_CAMP_STORAGE, dump_spot, 60 ) ) {
+        std::unordered_set<tripoint> src_set = mgr.get_near( zone_type_CAMP_STORAGE, dump_spot, 60 );
         _inv.form_from_zone( target_map, src_set, nullptr, false );
     }
     /*
@@ -724,7 +724,7 @@ bool basecamp_action_components::choose_components()
         comp_selection<item_comp> is =
             g->u.select_item_component( it, batch_size_, base_._inv, true, filter,
                                         !base_.by_radio );
-        if( is.use_from == cancel ) {
+        if( is.use_from == usage_from::cancel ) {
             return false;
         }
         item_selections_.push_back( is );
@@ -734,7 +734,7 @@ bool basecamp_action_components::choose_components()
         comp_selection<tool_comp> ts =
             g->u.select_tool_component( it, batch_size_, base_._inv, DEFAULT_HOTKEYS, true,
                                         !base_.by_radio );
-        if( ts.use_from == cancel ) {
+        if( ts.use_from == usage_from::cancel ) {
             return false;
         }
         tool_selections_.push_back( ts );

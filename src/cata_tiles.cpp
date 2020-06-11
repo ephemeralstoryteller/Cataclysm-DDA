@@ -703,7 +703,7 @@ void tileset_loader::process_variations_after_loading( weighted_int_list<std::ve
         std::remove_if(
             vs.begin(),
             vs.end(),
-    [&]( weighted_object<int, std::vector<int>> o ) {
+    [&]( const weighted_object<int, std::vector<int>> &o ) {
         return o.obj.empty();
     }
         ),
@@ -981,19 +981,6 @@ struct tile_render_info {
         std::copy( invisible, invisible + 5, this->invisible );
     }
 };
-
-static int divide_round_down( int a, int b )
-{
-    if( b < 0 ) {
-        a = -a;
-        b = -b;
-    }
-    if( a >= 0 ) {
-        return a / b;
-    } else {
-        return -( ( -a + b - 1 ) / b );
-    }
-}
 
 void cata_tiles::draw( const point &dest, const tripoint &center, int width, int height,
                        std::multimap<point, formatted_text> &overlay_strings,

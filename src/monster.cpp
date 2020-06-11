@@ -89,14 +89,14 @@ static const itype_id itype_corpse( "corpse" );
 static const itype_id itype_milk( "milk" );
 static const itype_id itype_milk_raw( "milk_raw" );
 
-static const species_id FISH( "FISH" );
-static const species_id FUNGUS( "FUNGUS" );
-static const species_id INSECT( "INSECT" );
-static const species_id MAMMAL( "MAMMAL" );
-static const species_id MOLLUSK( "MOLLUSK" );
-static const species_id ROBOT( "ROBOT" );
-static const species_id SPIDER( "SPIDER" );
-static const species_id ZOMBIE( "ZOMBIE" );
+static const species_id species_FISH( "FISH" );
+static const species_id species_FUNGUS( "FUNGUS" );
+static const species_id species_INSECT( "INSECT" );
+static const species_id species_MAMMAL( "MAMMAL" );
+static const species_id species_MOLLUSK( "MOLLUSK" );
+static const species_id species_ROBOT( "ROBOT" );
+static const species_id species_SPIDER( "SPIDER" );
+static const species_id species_ZOMBIE( "ZOMBIE" );
 
 static const trait_id trait_ANIMALDISCORD( "ANIMALDISCORD" );
 static const trait_id trait_ANIMALDISCORD2( "ANIMALDISCORD2" );
@@ -172,12 +172,12 @@ struct pathfinding_settings;
 // The rough formula is 2^(-x), e.g. for x = 5 it's 0.03125 (~ 3%).
 static constexpr int UPGRADE_MAX_ITERS = 5;
 
-static const std::map<m_size, translation> size_names {
-    { m_size::MS_TINY, to_translation( "size adj", "tiny" ) },
-    { m_size::MS_SMALL, to_translation( "size adj", "small" ) },
-    { m_size::MS_MEDIUM, to_translation( "size adj", "medium" ) },
-    { m_size::MS_LARGE, to_translation( "size adj", "large" ) },
-    { m_size::MS_HUGE, to_translation( "size adj", "huge" ) },
+static const std::map<creature_size, translation> size_names {
+    { creature_size::tiny, to_translation( "size adj", "tiny" ) },
+    { creature_size::small, to_translation( "size adj", "small" ) },
+    { creature_size::medium, to_translation( "size adj", "medium" ) },
+    { creature_size::large, to_translation( "size adj", "large" ) },
+    { creature_size::huge, to_translation( "size adj", "huge" ) },
 };
 
 static const std::map<monster_attitude, std::pair<std::string, color_id>> attitude_names {
@@ -552,7 +552,7 @@ std::string monster::name( unsigned int quantity ) const
 std::string monster::name_with_armor() const
 {
     std::string ret;
-    if( type->in_species( INSECT ) ) {
+    if( type->in_species( species_INSECT ) ) {
         ret = _( "carapace" );
     } else if( made_of( material_id( "veggy" ) ) ) {
         ret = _( "thick bark" );
@@ -1048,7 +1048,7 @@ monster_attitude monster::attitude( const Character *u ) const
         }
         // Zombies don't understand not attacking NPCs, but dogs and bots should.
         const npc *np = dynamic_cast< const npc * >( u );
-        if( np != nullptr && np->get_attitude() != NPCATT_KILL && !type->in_species( ZOMBIE ) ) {
+        if( np != nullptr && np->get_attitude() != NPCATT_KILL && !type->in_species( species_ZOMBIE ) ) {
             return MATT_FRIEND;
         }
         if( np != nullptr && np->is_hallucination() ) {
@@ -1073,14 +1073,14 @@ monster_attitude monster::attitude( const Character *u ) const
             }
         }
 
-        if( type->in_species( FUNGUS ) && ( u->has_trait( trait_THRESH_MYCUS ) ||
-                                            u->has_trait( trait_MYCUS_FRIEND ) ) ) {
+        if( type->in_species( species_FUNGUS ) && ( u->has_trait( trait_THRESH_MYCUS ) ||
+                u->has_trait( trait_MYCUS_FRIEND ) ) ) {
             return MATT_FRIEND;
         }
 
         if( effective_anger >= 10 &&
-            ( ( type->in_species( MAMMAL ) && u->has_trait( trait_PHEROMONE_MAMMAL ) ) ||
-              ( type->in_species( INSECT ) && u->has_trait( trait_PHEROMONE_INSECT ) ) ) ) {
+            ( ( type->in_species( species_MAMMAL ) && u->has_trait( trait_PHEROMONE_MAMMAL ) ) ||
+              ( type->in_species( species_INSECT ) && u->has_trait( trait_PHEROMONE_INSECT ) ) ) ) {
             effective_anger -= 20;
         }
 
@@ -1654,8 +1654,8 @@ bool monster::move_effects( bool )
         }
         // non-friendly monster will struggle to get free occasionally.
         // some monsters can't be tangled up with a net/bolas/lasso etc.
-        bool immediate_break = type->in_species( FISH ) || type->in_species( MOLLUSK ) ||
-                               type->in_species( ROBOT ) || type->bodytype == "snake" || type->bodytype == "blob";
+        bool immediate_break = type->in_species( species_FISH ) || type->in_species( species_MOLLUSK ) ||
+                               type->in_species( species_ROBOT ) || type->bodytype == "snake" || type->bodytype == "blob";
         if( !immediate_break && rng( 0, 900 ) > type->melee_dice * type->melee_sides * 1.5 ) {
             if( u_see_me ) {
                 add_msg( _( "The %s struggles to break free of its bonds." ), name() );
@@ -1897,19 +1897,19 @@ float monster::stability_roll() const
 {
     int size_bonus = 0;
     switch( type->size ) {
-        case MS_TINY:
+        case creature_size::tiny:
             size_bonus -= 7;
             break;
-        case MS_SMALL:
+        case creature_size::small:
             size_bonus -= 3;
             break;
-        case MS_LARGE:
+        case creature_size::large:
             size_bonus += 5;
             break;
-        case MS_HUGE:
+        case creature_size::huge:
             size_bonus += 10;
             break;
-        case MS_MEDIUM:
+        case creature_size::medium:
             break; // keep default
     }
 
@@ -1961,15 +1961,15 @@ float monster::fall_damage_mod() const
     }
 
     switch( type->size ) {
-        case MS_TINY:
+        case creature_size::tiny:
             return 0.2f;
-        case MS_SMALL:
+        case creature_size::small:
             return 0.6f;
-        case MS_MEDIUM:
+        case creature_size::medium:
             return 1.0f;
-        case MS_LARGE:
+        case creature_size::large:
             return 1.4f;
-        case MS_HUGE:
+        case creature_size::huge:
             return 2.0f;
     }
 
@@ -2354,7 +2354,8 @@ void monster::drop_items_on_death()
         // Temporary vector, to remember which items will be dropped
         std::vector<item> remaining;
         for( const item &it : items ) {
-            if( rng_float( 0, 1 ) < spawn_rate ) {
+            // Mission items are not affected by item spawn rate
+            if( rng_float( 0, 1 ) < spawn_rate || it.has_flag( "MISSION_ITEM" ) ) {
                 remaining.push_back( it );
             }
         }
@@ -2507,7 +2508,7 @@ bool monster::make_fungus()
     }
     char polypick = 0;
     const mtype_id &tid = type->id;
-    if( type->in_species( FUNGUS ) ) { // No friendly-fungalizing ;-)
+    if( type->in_species( species_FUNGUS ) ) { // No friendly-fungalizing ;-)
         return true;
     }
     if( !made_of( material_id( "flesh" ) ) && !made_of( material_id( "hflesh" ) ) &&
@@ -2546,7 +2547,7 @@ bool monster::make_fungus()
         polypick = 7;
     } else if( tid == mon_zombie_gasbag ) {
         polypick = 8;
-    } else if( type->in_species( SPIDER ) && get_size() > MS_TINY ) {
+    } else if( type->in_species( species_SPIDER ) && get_size() > creature_size::tiny ) {
         polypick = 9;
     }
 
@@ -2629,9 +2630,9 @@ field_type_id monster::gibType() const
     return type->gibType();
 }
 
-m_size monster::get_size() const
+creature_size monster::get_size() const
 {
-    return m_size( type->size + size_bonus );
+    return creature_size( type->size + size_bonus );
 }
 
 units::mass monster::get_weight() const

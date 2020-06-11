@@ -92,12 +92,12 @@ static const efftype_id effect_pacified( "pacified" );
 static const efftype_id effect_pet( "pet" );
 static const efftype_id effect_riding( "riding" );
 static const efftype_id effect_sleep( "sleep" );
-static const efftype_id effect_under_op( "under_operation" );
+static const efftype_id effect_under_operation( "under_operation" );
 
 static const itype_id fuel_type_animal( "animal" );
 
-static const zone_type_id zone_type_npc_investigate_only( "NPC_INVESTIGATE_ONLY" );
-static const zone_type_id zone_type_npc_no_investigate( "NPC_NO_INVESTIGATE" );
+static const zone_type_id zone_type_NPC_INVESTIGATE_ONLY( "NPC_INVESTIGATE_ONLY" );
+static const zone_type_id zone_type_NPC_NO_INVESTIGATE( "NPC_NO_INVESTIGATE" );
 
 static const skill_id skill_speech( "speech" );
 
@@ -279,7 +279,6 @@ static void npc_temp_orders_menu( const std::vector<npc *> &npc_list )
             output_string += std::string( "\n" ) +
                              _( "Other followers might have different temporary orders." );
         }
-        g->refresh_all();
         nmenu.reset();
         nmenu.text = _( "Issue what temporary order?" );
         nmenu.desc_enabled = true;
@@ -623,7 +622,6 @@ void game::chat()
     }
 
     u.moves -= 100;
-    refresh_all();
 }
 
 void npc::handle_sound( const sounds::sound_t spriority, const std::string &description,
@@ -695,10 +693,10 @@ void npc::handle_sound( const sounds::sound_t spriority, const std::string &desc
             bool should_check = rl_dist( pos(), spos ) < investigate_dist;
             if( should_check ) {
                 const zone_manager &mgr = zone_manager::get_manager();
-                if( mgr.has( zone_type_npc_no_investigate, s_abs_pos, fac_id ) ) {
+                if( mgr.has( zone_type_NPC_NO_INVESTIGATE, s_abs_pos, fac_id ) ) {
                     should_check = false;
-                } else if( mgr.has( zone_type_npc_investigate_only, my_abs_pos, fac_id ) &&
-                           !mgr.has( zone_type_npc_investigate_only, s_abs_pos, fac_id ) ) {
+                } else if( mgr.has( zone_type_NPC_INVESTIGATE_ONLY, my_abs_pos, fac_id ) &&
+                           !mgr.has( zone_type_NPC_INVESTIGATE_ONLY, s_abs_pos, fac_id ) ) {
                     should_check = false;
                 }
             }
@@ -879,7 +877,6 @@ void npc::talk_to_u( bool text_only, bool radio_contact )
             d.add_topic( next );
         }
     } while( !d.done );
-    g->refresh_all();
 
     if( g->u.activity.id() == ACT_AIM && !g->u.has_weapon() ) {
         g->u.cancel_activity();
@@ -891,7 +888,7 @@ void npc::talk_to_u( bool text_only, bool radio_contact )
         return;
     }
 
-    if( !g->u.has_effect( effect_under_op ) ) {
+    if( !g->u.has_effect( effect_under_operation ) ) {
         g->cancel_activity_or_ignore_query( distraction_type::talked_to,
                                             string_format( _( "%s talked to you." ), name ) );
     }
@@ -1172,7 +1169,7 @@ talk_response &dialogue::add_response_none( const std::string &text )
 }
 
 talk_response &dialogue::add_response( const std::string &text, const std::string &r,
-                                       talkfunction_ptr effect_success, const bool first )
+                                       const talkfunction_ptr &effect_success, const bool first )
 {
     talk_response &result = add_response( text, r, first );
     result.success.set_effect( effect_success );
@@ -1180,7 +1177,7 @@ talk_response &dialogue::add_response( const std::string &text, const std::strin
 }
 
 talk_response &dialogue::add_response( const std::string &text, const std::string &r,
-                                       std::function<void( npc & )> effect_success,
+                                       const std::function<void( npc & )> &effect_success,
                                        dialogue_consequence consequence, const bool first )
 {
     talk_response &result = add_response( text, r, first );
@@ -1898,7 +1895,7 @@ static talk_topic load_inline_topic( const JsonObject &jo )
     return talk_topic( id );
 }
 
-talk_effect_fun_t::talk_effect_fun_t( talkfunction_ptr ptr )
+talk_effect_fun_t::talk_effect_fun_t( const talkfunction_ptr &ptr )
 {
     function = [ptr]( const dialogue & d ) {
         npc &p = *d.beta;
@@ -1906,7 +1903,7 @@ talk_effect_fun_t::talk_effect_fun_t( talkfunction_ptr ptr )
     };
 }
 
-talk_effect_fun_t::talk_effect_fun_t( std::function<void( npc &p )> ptr )
+talk_effect_fun_t::talk_effect_fun_t( const std::function<void( npc &p )> &ptr )
 {
     function = [ptr]( const dialogue & d ) {
         npc &p = *d.beta;
@@ -1914,7 +1911,7 @@ talk_effect_fun_t::talk_effect_fun_t( std::function<void( npc &p )> ptr )
     };
 }
 
-talk_effect_fun_t::talk_effect_fun_t( std::function<void( const dialogue &d )> fun )
+talk_effect_fun_t::talk_effect_fun_t( const std::function<void( const dialogue &d )> &fun )
 {
     function = [fun]( const dialogue & d ) {
         fun( d );
@@ -2433,7 +2430,7 @@ void talk_effect_t::set_effect_consequence( const talk_effect_fun_t &fun, dialog
     guaranteed_consequence = std::max( guaranteed_consequence, con );
 }
 
-void talk_effect_t::set_effect_consequence( std::function<void( npc &p )> ptr,
+void talk_effect_t::set_effect_consequence( const std::function<void( npc &p )> &ptr,
         dialogue_consequence con )
 {
     talk_effect_fun_t npctalk_setter( ptr );
@@ -3049,7 +3046,7 @@ dynamic_line_t::dynamic_line_t( const JsonObject &jo )
     }
 }
 
-dynamic_line_t::dynamic_line_t( JsonArray ja )
+dynamic_line_t::dynamic_line_t( const JsonArray &ja )
 {
     std::vector<dynamic_line_t> lines;
     for( const JsonValue entry : ja ) {

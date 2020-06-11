@@ -84,6 +84,7 @@
 #include "timed_event.h"
 #include "translations.h"
 #include "trap.h"
+#include "ui_manager.h"
 #include "value_ptr.h"
 #include "veh_type.h"
 #include "vehicle.h"
@@ -175,7 +176,7 @@ static submap null_submap;
 maptile map::maptile_at( const tripoint &p ) const
 {
     if( !inbounds( p ) ) {
-        return maptile( &null_submap, 0, 0 );
+        return maptile( &null_submap, point_zero );
     }
 
     return maptile_at_internal( p );
@@ -184,7 +185,7 @@ maptile map::maptile_at( const tripoint &p ) const
 maptile map::maptile_at( const tripoint &p )
 {
     if( !inbounds( p ) ) {
-        return maptile( &null_submap, 0, 0 );
+        return maptile( &null_submap, point_zero );
     }
 
     return maptile_at_internal( p );
@@ -681,7 +682,8 @@ vehicle *map::move_vehicle( vehicle &veh, const tripoint &dp, const tileray &fac
     // Redraw scene
     // But only if the vehicle was seen before or after the move
     if( seen || sees_veh( g->u, veh, true ) ) {
-        g->draw();
+        g->invalidate_main_ui_adaptor();
+        ui_manager::redraw_invalidated();
         refresh_display();
     }
     return new_vehicle;
@@ -1301,9 +1303,10 @@ void map::furn_set( const tripoint &p, const furn_id &new_furniture )
     const furn_t &new_t = new_furniture.obj();
 
     // If player has grabbed this furniture and it's no longer grabbable, release the grab.
-    if( g->u.get_grab_type() == OBJECT_FURNITURE && g->u.grab_point == p && !new_t.is_movable() ) {
+    if( g->u.get_grab_type() == object_type::FURNITURE && g->u.grab_point == p &&
+        !new_t.is_movable() ) {
         add_msg( _( "The %s you were grabbing is destroyed!" ), old_t.name() );
-        g->u.grab( OBJECT_NONE );
+        g->u.grab( object_type::NONE );
     }
     // If a creature was crushed under a rubble -> free it
     if( old_id == f_rubble && new_furniture == f_null ) {
@@ -3970,7 +3973,7 @@ map_stack map::i_at( const tripoint &p )
     return map_stack{ &current_submap->get_items( l ), p, this };
 }
 
-map_stack::iterator map::i_rem( const tripoint &p, map_stack::const_iterator it )
+map_stack::iterator map::i_rem( const tripoint &p, const map_stack::const_iterator &it )
 {
     point l;
     submap *const current_submap = get_submap_at( p, l );
@@ -6591,7 +6594,6 @@ void map::vertical_shift( const int newz )
     set_abs_sub( tripoint( trp.xy(), newz ) );
 
     // TODO: Remove the function when it's safe
-    return;
 }
 
 // saven saves a single nonant.  worldx and worldy are used for the file
@@ -6775,7 +6777,7 @@ void map::rotten_item_spawn( const item &item, const tripoint &pnt )
                                          get_option<float>( "CARRION_SPAWNRATE" ) );
     if( rng( 0, 100 ) < chance ) {
         MonsterGroupResult spawn_details = MonsterGroupManager::GetResultFromGroup( mgroup );
-        add_spawn( spawn_details.name, 1, pnt, false );
+        add_spawn( spawn_details, pnt );
         if( g->u.sees( pnt ) ) {
             if( item.is_seed() ) {
                 add_msg( m_warning, _( "Something has crawled out of the %s plants!" ), item.get_plant_name() );
@@ -7335,7 +7337,7 @@ void map::spawn_monsters_submap( const tripoint &gp, bool ignore_sight )
                 tmp.friendly = -1;
             }
             if( !i.data.ammo.empty() ) {
-                for( std::pair<std::string, jmapgen_int> ap : i.data.ammo ) {
+                for( std::pair<itype_id, jmapgen_int> ap : i.data.ammo ) {
                     tmp.ammo.emplace( ap.first, ap.second.get() );
                 }
             } else {
@@ -8347,7 +8349,7 @@ void map::update_pathfinding_cache( int zlev ) const
 
                     pf_special cur_value = PF_NORMAL;
 
-                    maptile tile( cur_submap, sx, sy );
+                    maptile tile( cur_submap, point( sx, sy ) );
 
                     const auto &terrain = tile.get_ter_t();
                     const auto &furniture = tile.get_furn_t();
