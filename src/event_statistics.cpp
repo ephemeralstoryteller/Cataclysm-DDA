@@ -9,6 +9,7 @@
 
 #include "cata_variant.h"
 #include "debug.h"
+#include "enum_conversions.h"
 #include "enums.h"
 #include "event.h"
 #include "event_field_transformations.h"
@@ -912,7 +913,7 @@ struct event_statistic_unique_value : event_statistic::impl {
         }
 
         const event_statistic_unique_value *stat;
-        int count;
+        int count = 0;
         cata_variant value;
     };
 
@@ -1004,7 +1005,7 @@ struct event_statistic_first_value : event_statistic::impl {
         }
 
         const event_statistic_first_value *stat;
-        int count;
+        int count = 0;
         cata_variant value;
     };
 

@@ -1,8 +1,8 @@
 #include "requirements.h"
 
 #include <algorithm>
-#include <cassert>
 #include <climits>
+#include <cmath>
 #include <cstdlib>
 #include <iterator>
 #include <limits>
@@ -12,10 +12,12 @@
 #include <stack>
 #include <unordered_set>
 
-#include "avatar.h"
+#include "cata_assert.h"
 #include "cata_utility.h"
+#include "character.h"
 #include "color.h"
 #include "debug.h"
+#include "enum_traits.h"
 #include "game.h"
 #include "generic_factory.h"
 #include "inventory.h"
@@ -24,7 +26,6 @@
 #include "itype.h"
 #include "json.h"
 #include "output.h"
-#include "player.h"
 #include "point.h"
 #include "string_formatter.h"
 #include "string_id.h"
@@ -116,6 +117,14 @@ std::string quality_requirement::to_string( const int, const int ) const
                           count, type.obj().name, level );
 }
 
+std::string quality_requirement::to_colored_string() const
+{
+    //~ %1$d: tool count, %2$s: quality requirement name, %3$d: quality level requirement
+    return string_format( ngettext( "%1$d tool with <info>%2$s of %3$d</info> or more",
+                                    "%1$d tools with <info>%2$s of %3$d</info> or more", count ),
+                          count, type.obj().name, level );
+}
+
 bool tool_comp::by_charges() const
 {
     return count > 0;
@@ -136,7 +145,7 @@ std::string tool_comp::to_string( const int batch, const int ) const
 std::string item_comp::to_string( const int batch, const int avail ) const
 {
     const int c = std::abs( count ) * batch;
-    const auto type_ptr = item::find_type( type );
+    const itype *type_ptr = item::find_type( type );
     if( type_ptr->count_by_charges() ) {
         if( avail == item::INFINITE_CHARGES ) {
             //~ %1$s: item name, %2$d: charge requirement
@@ -635,7 +644,7 @@ std::vector<std::string> requirement_data::get_folded_tools_list( int width, nc_
 bool requirement_data::can_make_with_inventory( const inventory &crafting_inv,
         const std::function<bool( const item & )> &filter, int batch, craft_flags flags ) const
 {
-    if( g->u.has_trait( trait_DEBUG_HS ) ) {
+    if( get_player_character().has_trait( trait_DEBUG_HS ) ) {
         return true;
     }
 
@@ -697,7 +706,7 @@ bool quality_requirement::has(
     const inventory &crafting_inv, const std::function<bool( const item & )> &, int,
     craft_flags, const std::function<void( int )> & ) const
 {
-    if( g->u.has_trait( trait_DEBUG_HS ) ) {
+    if( get_player_character().has_trait( trait_DEBUG_HS ) ) {
         return true;
     }
     return crafting_inv.has_quality( type, level, count );
@@ -706,7 +715,8 @@ bool quality_requirement::has(
 nc_color quality_requirement::get_color( bool has_one, const inventory &,
         const std::function<bool( const item & )> &, int ) const
 {
-    if( available == available_status::a_true ) {
+    if( get_player_character().has_trait( trait_DEBUG_HS ) ||
+        available == available_status::a_true ) {
         return c_green;
     }
     return has_one ? c_dark_gray : c_red;
@@ -716,7 +726,7 @@ bool tool_comp::has(
     const inventory &crafting_inv, const std::function<bool( const item & )> &filter, int batch,
     craft_flags flags, const std::function<void( int )> &visitor ) const
 {
-    if( g->u.has_trait( trait_DEBUG_HS ) ) {
+    if( get_player_character().has_trait( trait_DEBUG_HS ) ) {
         return true;
     }
     if( !by_charges() ) {
@@ -748,7 +758,7 @@ bool item_comp::has(
     const inventory &crafting_inv, const std::function<bool( const item & )> &filter, int batch,
     craft_flags, const std::function<void( int )> & ) const
 {
-    if( g->u.has_trait( trait_DEBUG_HS ) ) {
+    if( get_player_character().has_trait( trait_DEBUG_HS ) ) {
         return true;
     }
     const int cnt = std::abs( count ) * batch;
@@ -1293,8 +1303,8 @@ static void expand_item_in_reqs(
     const requirement_data::alter_item_comp_vector &to_expand, size_t orig_index, size_t index,
     std::vector<requirement_data::alter_item_comp_vector> &result )
 {
-    assert( req_prefix.size() >= orig_index );
-    assert( orig_index < index );
+    cata_assert( req_prefix.size() >= orig_index );
+    cata_assert( orig_index < index );
 
     if( index == to_expand.size() ) {
         // We reached the end without using the leftovers.  So need to add them
@@ -1446,14 +1456,14 @@ std::vector<const requirement_data *> deduped_requirement_data::feasible_alterna
 }
 
 const requirement_data *deduped_requirement_data::select_alternative(
-    player &crafter, const std::function<bool( const item & )> &filter, int batch,
+    Character &crafter, const std::function<bool( const item & )> &filter, int batch,
     craft_flags flags ) const
 {
     return select_alternative( crafter, crafter.crafting_inventory(), filter, batch, flags );
 }
 
 const requirement_data *deduped_requirement_data::select_alternative(
-    player &crafter, const inventory &inv, const std::function<bool( const item & )> &filter,
+    Character &crafter, const inventory &inv, const std::function<bool( const item & )> &filter,
     int batch, craft_flags flags ) const
 {
     const std::vector<const requirement_data *> all_reqs =

@@ -1,5 +1,14 @@
 #include "move_mode.h"
+
+#include <algorithm>
+#include <cstddef>
+#include <set>
+
+#include "assign.h"
+#include "debug.h"
 #include "game_constants.h"
+#include "generic_factory.h"
+#include "json.h"
 
 std::vector<move_mode_id> move_modes_sorted;
 
@@ -13,7 +22,6 @@ namespace
 generic_factory<move_mode> move_mode_factory( "move_mode" );
 } // namespace
 
-
 template<>
 const move_mode &move_mode_id::obj() const
 {
@@ -24,14 +32,6 @@ static const std::map<std::string, move_mode_type> move_types {
     { "crouching", move_mode_type::CROUCHING },
     { "walking",   move_mode_type::WALKING },
     { "running",   move_mode_type::RUNNING }
-};
-
-static const std::map<std::string, float> activity_levels = {
-    { "NO_EXERCISE",       NO_EXERCISE },
-    { "LIGHT_EXERCISE",    LIGHT_EXERCISE },
-    { "MODERATE_EXERCISE", MODERATE_EXERCISE },
-    { "ACTIVE_EXERCISE",   ACTIVE_EXERCISE },
-    { "EXTRA_EXERCISE",    EXTRA_EXERCISE }
 };
 
 void move_mode::load_move_mode( const JsonObject &jo, const std::string &src )

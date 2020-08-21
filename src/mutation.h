@@ -2,7 +2,10 @@
 #ifndef CATA_SRC_MUTATION_H
 #define CATA_SRC_MUTATION_H
 
+#include <algorithm>
+#include <climits>
 #include <map>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_map>
@@ -17,18 +20,24 @@
 #include "memory_fast.h"
 #include "optional.h"
 #include "point.h"
+#include "string_id.h"
 #include "translations.h"
 #include "type_id.h"
+#include "value_ptr.h"
 
+class JsonArray;
+class JsonIn;
 class JsonObject;
 class Trait_group;
 class item;
 class nc_color;
 class player;
 struct dream;
+
+enum game_message_type : int;
+
 template <typename E> struct enum_traits;
 template <typename T> class string_id;
-class JsonArray;
 
 extern std::vector<dream> dreams;
 extern std::map<std::string, std::vector<trait_id> > mutations_category;
@@ -78,7 +87,7 @@ struct mut_transform {
 
     trait_id target;
 
-    /** displayed if player sees transformation with %s replaced by item name */
+    /** displayed if player sees transformation with %s replaced by mutation name */
     translation msg_transform;
     /** used to set the active property of the transformed @ref target */
     bool active = false;
@@ -86,6 +95,41 @@ struct mut_transform {
     int moves = 0;
     mut_transform();
     bool load( const JsonObject &jsobj, const std::string &member );
+};
+
+enum trigger_type {
+    PAIN,
+    HUNGER,
+    THRIST,
+    MOOD,
+    STAMINA,
+    MOON,
+    TIME,
+    num_trigger
+};
+template<>
+struct enum_traits<trigger_type> {
+    static constexpr auto last = trigger_type::num_trigger;
+};
+
+struct reflex_activation_data {
+
+    /**What variable controls the activation*/
+    trigger_type trigger;
+
+    /**Activates above that threshold and deactivates below it*/
+    int threshold_low = INT_MIN;
+    /**Activates below that threshold and deactivates above it*/
+    int threshold_high = INT_MAX;
+
+    std::pair<translation, game_message_type> msg_on;
+    std::pair<translation, game_message_type> msg_off;
+
+    bool is_trigger_true( const Character &guy ) const;
+
+    bool was_loaded = false;
+    void load( const JsonObject &jsobj );
+    void deserialize( JsonIn &jsin );
 };
 
 struct mutation_branch {
@@ -129,36 +173,36 @@ struct mutation_branch {
         int bodytemp_max = 0;
         int bodytemp_sleep = 0;
         // Healing per turn
-        float healing_awake = 0.0f;
-        float healing_resting = 0.0f;
+        cata::optional<float> healing_awake = cata::nullopt;
+        cata::optional<float> healing_resting = cata::nullopt;
         // Limb mending bonus
-        float mending_modifier = 1.0f;
+        cata::optional<float> mending_modifier = cata::nullopt;
         // Bonus HP multiplier. That is, 1.0 doubles hp, -0.5 halves it.
-        float hp_modifier = 0.0f;
+        cata::optional<float> hp_modifier = cata::nullopt;
         // Second HP modifier that stacks with first but is otherwise identical.
-        float hp_modifier_secondary = 0.0f;
+        cata::optional<float> hp_modifier_secondary = cata::nullopt;
         // Flat bonus/penalty to hp.
-        float hp_adjustment = 0.0f;
+        cata::optional<float> hp_adjustment = cata::nullopt;
         // Modify strength stat without changing HP
-        float str_modifier = 0.0f;
+        cata::optional<float> str_modifier = cata::nullopt;
         //melee bonuses
         int cut_dmg_bonus = 0;
-        float pierce_dmg_bonus = 0.0;
+        float pierce_dmg_bonus = 0.0f;
         std::pair<int, int> rand_cut_bonus;
         int bash_dmg_bonus = 0;
         std::pair<int, int> rand_bash_bonus;
         // Additional bonuses
-        float dodge_modifier = 0.0f;
-        float speed_modifier = 1.0f;
-        float movecost_modifier = 1.0f;
-        float movecost_flatground_modifier = 1.0f;
-        float movecost_obstacle_modifier = 1.0f;
-        float attackcost_modifier = 1.0f;
-        float max_stamina_modifier = 1.0f;
-        float weight_capacity_modifier = 1.0f;
-        float hearing_modifier = 1.0f;
-        float movecost_swim_modifier = 1.0f;
-        float noise_modifier = 1.0f;
+        cata::optional<float> dodge_modifier = cata::nullopt;
+        cata::optional<float> speed_modifier = cata::nullopt;
+        cata::optional<float> movecost_modifier = cata::nullopt;
+        cata::optional<float> movecost_flatground_modifier = cata::nullopt;
+        cata::optional<float> movecost_obstacle_modifier = cata::nullopt;
+        cata::optional<float> attackcost_modifier = cata::nullopt;
+        cata::optional<float> max_stamina_modifier = cata::nullopt;
+        cata::optional<float> weight_capacity_modifier = cata::nullopt;
+        cata::optional<float> hearing_modifier = cata::nullopt;
+        cata::optional<float> movecost_swim_modifier = cata::nullopt;
+        cata::optional<float> noise_modifier = cata::nullopt;
         float scent_modifier = 1.0f;
         cata::optional<int> scent_intensity;
         cata::optional<int> scent_mask;
@@ -167,6 +211,8 @@ struct mutation_branch {
         int butchering_quality = 0;
 
         cata::value_ptr<mut_transform> transform;
+
+        std::vector<std::vector<reflex_activation_data>> triger_list;
 
         /**Map of crafting skills modifiers, can be negative*/
         std::map<skill_id, int> craft_skill_bonus;
@@ -186,40 +232,40 @@ struct mutation_branch {
         int weakness_to_water = 0;
 
         // Subtracted from the range at which monsters see player, corresponding to percentage of change. Clamped to +/- 60 for effectiveness
-        float stealth_modifier = 0.0f;
+        cata::optional<float> stealth_modifier = cata::nullopt;
 
         // Speed lowers--or raises--for every X F (X C) degrees below or above 65 F (18.3 C)
-        float temperature_speed_modifier = 0.0f;
+        cata::optional<float> temperature_speed_modifier = cata::nullopt;
         // Extra metabolism rate multiplier. 1.0 doubles usage, -0.5 halves.
-        float metabolism_modifier = 0.0f;
+        cata::optional<float> metabolism_modifier = cata::nullopt;
         // As above but for thirst.
-        float thirst_modifier = 0.0f;
+        cata::optional<float> thirst_modifier = cata::nullopt;
         // As above but for fatigue.
-        float fatigue_modifier = 0.0f;
+        cata::optional<float> fatigue_modifier = cata::nullopt;
         // Modifier for the rate at which fatigue and sleep deprivation drops when resting.
-        float fatigue_regen_modifier = 0.0f;
+        cata::optional<float> fatigue_regen_modifier = cata::nullopt;
         // Modifier for the rate at which stamina regenerates.
-        float stamina_regen_modifier = 0.0f;
+        cata::optional<float> stamina_regen_modifier = cata::nullopt;
         // the modifier for obtaining an item from a container as a handling penalty
-        float obtain_cost_multiplier = 1.0f;
+        cata::optional<float> obtain_cost_multiplier = cata::nullopt;
 
         // Adjusts sight range on the overmap. Positives make it farther, negatives make it closer.
-        float overmap_sight = 0.0f;
+        cata::optional<float> overmap_sight = cata::nullopt;
 
         // Multiplier for sight range, defaulting to 1.
-        float overmap_multiplier = 1.0f;
+        cata::optional<float> overmap_multiplier = cata::nullopt;
 
         // Multiplier for map memory capacity, defaulting to 1.
-        float map_memory_capacity_multiplier = 1.0f;
+        cata::optional<float> map_memory_capacity_multiplier = cata::nullopt;
 
         // Multiplier for reading speed, defaulting to 1.
-        float reading_speed_multiplier = 1.0f;
+        cata::optional<float> reading_speed_multiplier = cata::nullopt;
 
         // Multiplier for skill rust, defaulting to 1.
-        float skill_rust_multiplier = 1.0f;
+        cata::optional<float> skill_rust_multiplier = cata::nullopt;
 
         // Multiplier for consume time, defaulting to 1.
-        float consume_time_modifier = 1.0f;
+        cata::optional<float> consume_time_modifier = cata::nullopt;
 
         // Bonus or penalty to social checks (additive).  50 adds 50% to success, -25 subtracts 25%
         social_modifiers social_mods;
@@ -247,9 +293,9 @@ struct mutation_branch {
         std::set<bodypart_str_id> no_cbm_on_bp;
 
         // amount of mana added or subtracted from max
-        float mana_modifier = 0.0f;
-        float mana_multiplier = 1.0f;
-        float mana_regen_multiplier = 1.0f;
+        cata::optional<float> mana_modifier = cata::nullopt;
+        cata::optional<float> mana_multiplier = cata::nullopt;
+        cata::optional<float> mana_regen_multiplier = cata::nullopt;
         // spells learned and their associated level when gaining the mutation
         std::map<spell_id, int> spells_learned;
         /** mutation enchantments */
@@ -391,7 +437,7 @@ struct mutation_branch {
          * \code
          * {
          *      "subtype": "depends on is_collection parameter",
-         *      "id": "ident",
+         *      "id": "identfier",
          *      "entries": [ x, y, z ]
          * }
          * \endcode

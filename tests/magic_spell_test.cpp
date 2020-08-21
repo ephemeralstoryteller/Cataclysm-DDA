@@ -1,10 +1,17 @@
+#include "catch/catch.hpp"
+
+#include <memory>
+#include <string>
+
 #include "avatar.h"
 #include "game.h"
 #include "magic.h"
-
-#include "catch/catch.hpp"
-#include "player_helpers.h"
 #include "map_helpers.h"
+#include "monster.h"
+#include "pimpl.h"
+#include "player_helpers.h"
+#include "point.h"
+#include "type_id.h"
 
 // Magic Spell tests
 // -----------------
@@ -465,7 +472,7 @@ TEST_CASE( "spell effect - target_attack", "[magic][spell][effect][target_attack
     int after_hp = 0;
 
     // Avatar/spellcaster
-    avatar &dummy = g->u;
+    avatar &dummy = get_avatar();
     clear_character( dummy );
     dummy.setpos( dummy_loc );
     REQUIRE( dummy.pos() == dummy_loc );
@@ -494,7 +501,7 @@ TEST_CASE( "spell effect - target_attack", "[magic][spell][effect][target_attack
     REQUIRE( pew_spell.range() >= 2 );
 
     // Ensure avatar has enough mana to cast
-    REQUIRE( dummy.magic.has_enough_energy( dummy, pew_spell ) );
+    REQUIRE( dummy.magic->has_enough_energy( dummy, pew_spell ) );
 
     // Cast the spell and measure the defender's change in HP
     before_hp = mummy.get_hp();
@@ -514,7 +521,7 @@ TEST_CASE( "spell effect - summon", "[magic][spell][effect][summon]" )
     const tripoint dummy_loc = { 60, 60, 0 };
     const tripoint mummy_loc = { 61, 60, 0 };
 
-    avatar &dummy = g->u;
+    avatar &dummy = get_avatar();
     clear_character( dummy );
     dummy.setpos( dummy_loc );
     REQUIRE( dummy.pos() == dummy_loc );
@@ -524,7 +531,7 @@ TEST_CASE( "spell effect - summon", "[magic][spell][effect][summon]" )
     spell_id mummy_id( "test_spell_tp_mummy" );
 
     spell mummy_spell( mummy_id );
-    REQUIRE( dummy.magic.has_enough_energy( dummy, mummy_spell ) );
+    REQUIRE( dummy.magic->has_enough_energy( dummy, mummy_spell ) );
 
     // Summon the mummy in the adjacent space
     mummy_spell.cast_spell_effect( dummy, mummy_loc );
@@ -553,7 +560,7 @@ TEST_CASE( "spell effect - recover_energy", "[magic][spell][effect][recover_ener
     // For that, "target_attack" with a negative damage is used.
 
     // Yer a wizard, ya dummy
-    player &dummy = g->u;
+    avatar &dummy = get_avatar();
     clear_character( dummy );
     clear_map();
 

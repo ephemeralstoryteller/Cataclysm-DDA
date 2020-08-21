@@ -1,7 +1,8 @@
+#include "catch/catch.hpp"
+
 #include <string>
 
 #include "avatar.h"
-#include "catch/catch.hpp"
 #include "creature.h"
 #include "game_constants.h"
 #include "options.h"
@@ -415,10 +416,10 @@ TEST_CASE( "activity level reset, increase and decrease", "[biometrics][activity
     // Activity level is a floating-point number, but only set to discrete values:
     //
     // NO_EXERCISE = 1.2f;
-    // LIGHT_EXERCISE = 1.375f;
-    // MODERATE_EXERCISE = 1.55f;
-    // ACTIVE_EXERCISE = 1.725f;
-    // EXTRA_EXERCISE = 1.9f;
+    // LIGHT_EXERCISE = 2.0f;
+    // MODERATE_EXERCISE = 4.5f;
+    // ACTIVE_EXERCISE = 8.0f;
+    // EXTRA_EXERCISE = 10.0f;
 
     // Functions tested:
     // activity_level_str (return string constant for each range)
@@ -496,6 +497,7 @@ TEST_CASE( "activity level reset, increase and decrease", "[biometrics][activity
 TEST_CASE( "mutations may affect character metabolic rate", "[biometrics][metabolism]" )
 {
     avatar dummy;
+    dummy.set_body();
 
     // Metabolic base rate uses PLAYER_HUNGER_RATE from game_balance.json, described as "base hunger
     // rate per 5 minutes". With no metabolism-affecting mutations, metabolism should be this value.
@@ -532,6 +534,7 @@ TEST_CASE( "mutations may affect character metabolic rate", "[biometrics][metabo
 TEST_CASE( "basal metabolic rate with various size and metabolism", "[biometrics][bmr]" )
 {
     avatar dummy;
+    dummy.set_body();
 
     // Basal metabolic rate depends on size (height), bodyweight (BMI), and activity level
     // scaled by metabolic base rate. Assume default metabolic rate.
@@ -551,27 +554,27 @@ TEST_CASE( "basal metabolic rate with various size and metabolism", "[biometrics
         REQUIRE( dummy.get_size() == creature_size::medium );
 
         SECTION( "normal metabolism" ) {
-            CHECK( 2087 == bmr_at_act_level( dummy, NO_EXERCISE ) );
-            CHECK( 2696 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
-            CHECK( 3304 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
+            CHECK( 1739 == bmr_at_act_level( dummy, NO_EXERCISE ) );
+            CHECK( 6955 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
+            CHECK( 17388 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
         }
 
         SECTION( "very fast metabolism" ) {
             set_single_trait( dummy, "HUNGER2" );
             REQUIRE( dummy.metabolic_rate_base() == 2.0f );
 
-            CHECK( 4174 == bmr_at_act_level( dummy, NO_EXERCISE ) );
-            CHECK( 5391 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
-            CHECK( 6608 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
+            CHECK( 3478 == bmr_at_act_level( dummy, NO_EXERCISE ) );
+            CHECK( 13910 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
+            CHECK( 34775 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
         }
 
         SECTION( "very slow (cold-blooded) metabolism" ) {
             set_single_trait( dummy, "COLDBLOOD3" );
             REQUIRE( dummy.metabolic_rate_base() == 0.5f );
 
-            CHECK( 1044 == bmr_at_act_level( dummy, NO_EXERCISE ) );
-            CHECK( 1348 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
-            CHECK( 1652 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
+            CHECK( 870 == bmr_at_act_level( dummy, NO_EXERCISE ) );
+            CHECK( 3478 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
+            CHECK( 8694 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
         }
     }
 
@@ -579,18 +582,18 @@ TEST_CASE( "basal metabolic rate with various size and metabolism", "[biometrics
         set_single_trait( dummy, "SMALL" );
         REQUIRE( dummy.get_size() == creature_size::small );
 
-        CHECK( 1262 == bmr_at_act_level( dummy, NO_EXERCISE ) );
-        CHECK( 1630 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
-        CHECK( 1998 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
+        CHECK( 1052 == bmr_at_act_level( dummy, NO_EXERCISE ) );
+        CHECK( 4205 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
+        CHECK( 10513 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
     }
 
     SECTION( "large body size" ) {
         set_single_trait( dummy, "LARGE" );
         REQUIRE( dummy.get_size() == creature_size::large );
 
-        CHECK( 3062 == bmr_at_act_level( dummy, NO_EXERCISE ) );
-        CHECK( 3955 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
-        CHECK( 4848 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
+        CHECK( 2552 == bmr_at_act_level( dummy, NO_EXERCISE ) );
+        CHECK( 10205 == bmr_at_act_level( dummy, MODERATE_EXERCISE ) );
+        CHECK( 25513 == bmr_at_act_level( dummy, EXTRA_EXERCISE ) );
     }
 }
 

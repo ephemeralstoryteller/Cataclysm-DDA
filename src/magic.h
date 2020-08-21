@@ -2,6 +2,7 @@
 #ifndef CATA_SRC_MAGIC_H
 #define CATA_SRC_MAGIC_H
 
+#include <algorithm>
 #include <functional>
 #include <map>
 #include <memory>
@@ -13,22 +14,25 @@
 #include "bodypart.h"
 #include "damage.h"
 #include "enum_bitset.h"
-#include "event_bus.h"
+#include "event_subscriber.h"
 #include "optional.h"
 #include "point.h"
 #include "sounds.h"
+#include "string_id.h"
 #include "translations.h"
 #include "type_id.h"
 #include "ui.h"
 
+class Character;
 class Creature;
 class JsonIn;
 class JsonObject;
 class JsonOut;
 class nc_color;
-class Character;
 class spell;
 class time_duration;
+struct requirement_data;
+
 namespace cata
 {
 class event;
@@ -41,6 +45,8 @@ enum class spell_flag : int {
     SWAP_POS, // a projectile spell swaps the positions of the caster and target
     HOSTILE_SUMMON, // summon spell always spawns a hostile monster
     HOSTILE_50, // summoned monster spawns friendly 50% of the time
+    POLYMORPH_GROUP, // polymorph spell chooses a monster from a group
+    FRIENDLY_POLY, // polymorph spell makes the monster friendly
     SILENT, // spell makes no noise at target
     LOUD, // spell makes extra noise at target
     VERBAL, // spell makes noise at caster location, mouth encumbrance affects fail %
@@ -56,8 +62,10 @@ enum class spell_flag : int {
     MUTATE_TRAIT, // overrides the mutate spell_effect to use a specific trait_id instead of a category
     WONDER, // instead of casting each of the extra_spells, it picks N of them and casts them (where N is std::min( damage(), number_of_spells ))
     PAIN_NORESIST, // pain altering spells can't be resisted (like with the deadened trait)
+    NO_FAIL, // this spell cannot fail when you cast it
     WITH_CONTAINER, // items spawned with container
     SPAWN_GROUP, // spawn or summon from an item or monster group, instead of individual item/monster ID
+    IGNITE_FLAMMABLE, // if spell effect area has any thing flamable, a fire will be produced
     LAST
 };
 
@@ -145,6 +153,9 @@ class spell_type
         // spell sound effect
         translation sound_description;
         skill_id skill;
+
+        requirement_id spell_components;
+
         sounds::sound_t sound_type = sounds::sound_t::_LAST;
         bool sound_ambient = false;
         std::string sound_id;
@@ -217,7 +228,7 @@ class spell_type
         // minimum pierce damage
         int min_pierce = 0;
         // increment of pierce damage per spell level
-        float pierce_increment = 0;
+        float pierce_increment = 0.0f;
         // max pierce damage
         int max_pierce = 0;
 
@@ -253,7 +264,7 @@ class spell_type
         // what energy do you use to cast this spell
         magic_energy_type energy_source = magic_energy_type::none;
 
-        damage_type dmg_type = damage_type::DT_NULL;
+        damage_type dmg_type = damage_type::DT_NONE;
 
         // list of valid targets to be affected by the area of effect.
         enum_bitset<spell_target> effect_targets;
@@ -264,7 +275,7 @@ class spell_type
         std::set<mtype_id> targeted_monster_ids;
 
         // lits of bodyparts this spell applies its effect to
-        enum_bitset<body_part> affected_bps;
+        body_part_set affected_bps;
 
         enum_bitset<spell_flag> spell_tags;
 
@@ -354,16 +365,18 @@ class spell
         float spell_fail( const Character &guy ) const;
         std::string colorized_fail_percent( const Character &guy ) const;
         // how long does it take to cast the spell
-        int casting_time( const Character &guy ) const;
-
+        int casting_time( const Character &guy, bool ignore_encumb = false ) const;
+        // the requirement data for spell components. includes tools, items, and qualities.
+        const requirement_data &components() const;
+        bool has_components() const;
         // can the Character cast this spell?
-        bool can_cast( const Character &guy ) const;
+        bool can_cast( Character &guy ) const;
         // can the Character learn this spell?
         bool can_learn( const Character &guy ) const;
         // is this spell valid
         bool is_valid() const;
         // is the bodypart affected by the effect
-        bool bp_is_affected( body_part bp ) const;
+        bool bp_is_affected( const bodypart_str_id &bp ) const;
         // check if the spell has a particular flag
         bool has_flag( const spell_flag &flag ) const;
         // check if the spell's class is the same as input
@@ -428,7 +441,8 @@ class spell
         void cast_spell_effect( Creature &source, const tripoint &target ) const;
         // goes through the spell effect and all of its internal spells
         void cast_all_effects( Creature &source, const tripoint &target ) const;
-
+        // uses up the components in @guy's inventory
+        void use_components( Character &guy ) const;
         // checks if a target point is in spell range
         bool is_target_in_range( const Creature &caster, const tripoint &p ) const;
 
@@ -479,7 +493,7 @@ class known_magic
         spell &get_spell( const spell_id &sp );
         // opens up a ui that the Character can choose a spell from
         // returns the index of the spell in the vector of spells
-        int select_spell( const Character &guy );
+        int select_spell( Character &guy );
         // get all known spells
         std::vector<spell *> get_spells();
         // how much mana is available to use to cast spells
@@ -516,6 +530,8 @@ void teleport_random( const spell &sp, Creature &caster, const tripoint & );
 void pain_split( const spell &, Creature &, const tripoint & );
 void target_attack( const spell &sp, Creature &caster,
                     const tripoint &epicenter );
+void targeted_polymorph( const spell &sp, Creature &caster, const tripoint &target );
+
 void projectile_attack( const spell &sp, Creature &caster,
                         const tripoint &target );
 void cone_attack( const spell &sp, Creature &caster,
@@ -576,7 +592,7 @@ struct area_expander {
         // Previous position
         tripoint from;
         // Accumulated cost.
-        float cost = 0;
+        float cost = 0.0f;
     };
 
     int max_range = -1;

@@ -84,7 +84,7 @@
     "price": 3500,
     "price_postapoc": 500,
     "bashing": 1,
-    "material": "paper",
+    "material": [ "paper" ],
     "symbol": "?",
     "color": "light_green",
     "skill": "cooking",
@@ -302,6 +302,7 @@
     "symbol": "?",
     "color": "red",
     "skill": "cooking",
+    "intelligence": 7,
     "required_level": 1,
     "max_level": 2,
     "time": "12 m"

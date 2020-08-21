@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -14,16 +15,19 @@
 #include "inventory.h"
 #include "item_location.h"
 #include "memory_fast.h"
+#include "optional.h"
 #include "player_activity.h"
 #include "point.h"
 #include "type_id.h"
+#include "units.h"
+#include "units_fwd.h"
 
 class player;
 class vpart_info;
 struct requirement_data;
 
 /** Represents possible return values from the cant_do function. */
-enum task_reason {
+enum class task_reason : int {
     UNKNOWN_TASK = -1, //No such task
     CAN_DO, //Task can be done
     INVALID_TARGET, //No valid target i.e. can't "change tire" if no tire present
@@ -70,13 +74,14 @@ class veh_interact
         int overview_limit = 0;
 
         const vpart_info *sel_vpart_info = nullptr;
+        std::string sel_vpart_variant;
         //Command currently being run by the player
         char sel_cmd = ' ';
 
         const vehicle_part *sel_vehicle_part = nullptr;
 
         int cpart = -1;
-        int page_size;
+        int page_size = 0;
         int fuel_index = 0; /** Starting index of where to start printing fuels from */
         // height of the stats window
         const int stats_h = 8;
@@ -98,16 +103,17 @@ class veh_interact
         int highlight_part = -1;
 
         struct install_info_t;
+
         std::unique_ptr<install_info_t> install_info;
 
         vehicle *veh;
         inventory crafting_inv;
         input_context main_context;
 
-        // maximum level of available lifting equipment (if any)
-        int max_lift;
-        // maximum level of available jacking equipment (if any)
-        int max_jack;
+        // maximum weight capacity of available lifting equipment (if any)
+        units::mass max_lift;
+        // maximum weight_capacity of available jacking equipment (if any)
+        units::mass max_jack;
 
         shared_ptr_fast<ui_adaptor> create_or_get_ui_adaptor();
 
@@ -164,11 +170,11 @@ class veh_interact
         size_t display_esc( const catacurses::window &win );
 
         struct part_option {
-            part_option( const std::string &key, vehicle_part *part, char hotkey,
+            part_option( const std::string &key, vehicle_part *part, input_event hotkey,
                          std::function<void( const vehicle_part &pt, const catacurses::window &w, int y )> details ) :
                 key( key ), part( part ), hotkey( hotkey ), details( details ) {}
 
-            part_option( const std::string &key, vehicle_part *part, char hotkey,
+            part_option( const std::string &key, vehicle_part *part, input_event hotkey,
                          std::function<void( const vehicle_part &pt, const catacurses::window &w, int y )> details,
                          std::function<void( const vehicle_part &pt )> message ) :
                 key( key ), part( part ), hotkey( hotkey ), details( details ), message( message ) {}
@@ -177,7 +183,7 @@ class veh_interact
             vehicle_part *part;
 
             /** Can @param action be run for this entry? */
-            char hotkey;
+            input_event hotkey;
 
             /** Writes any extra details for this entry */
             std::function<void( const vehicle_part &pt, const catacurses::window &w, int y )> details;

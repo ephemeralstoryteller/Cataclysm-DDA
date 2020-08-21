@@ -630,6 +630,12 @@
     "default": "nitrox"
   },
   {
+    "type": "ammunition_type",
+    "id": "extinguishing_agent",
+    "name": "extinguishing agent",
+    "default": "extinguishing_agent"
+  },
+  {
     "id": "tinder",
     "name": "tinder",
     "default": "tinder",
@@ -642,15 +648,21 @@
     "type": "ammunition_type"
   },
   {
-    "id": "oxygen",
-    "name": "oxygen",
-    "default": "oxygen",
-    "type": "ammunition_type"
+    "id": "water",
+    "type": "ammunition_type",
+    "name": "water",
+    "default": "water"
   },
   {
     "type": "ammunition_type",
     "id": "300blk",
     "name": ".300 AAC Blackout",
     "default": "300blk"
+  },
+  {
+    "type": "ammunition_type",
+    "id": "123ln",
+    "name": "12.3ln cartridge",
+    "default": "123ln"
   }
 ]

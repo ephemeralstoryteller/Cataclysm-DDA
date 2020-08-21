@@ -4,10 +4,16 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
-#include "generic_factory.h"
+#include "color.h"
+#include "string_id.h"
 #include "translations.h"
 #include "type_id.h"
+
+class JsonObject;
+template<typename T>
+class generic_factory;
 
 enum class steed_type : int {
     NONE,
@@ -41,20 +47,19 @@ class move_mode
         mutable move_mode_id cycle_to;
         move_mode_type _type;
 
-        float _exertion_level;
-        float _move_speed_mult;
-        float _sound_multiplier;
-        float _stamina_multiplier;
+        float _exertion_level = 0.0f;
+        float _move_speed_mult = 0.0f;
+        float _sound_multiplier = 0.0f;
+        float _stamina_multiplier = 0.0f;
 
-        int _mech_power_use;
-        int _swim_speed_mod;
+        int _mech_power_use = 0;
+        int _swim_speed_mod = 0;
 
         nc_color _panel_color;
         nc_color _symbol_color;
         uint32_t _panel_letter;
         uint32_t _letter;
         translation _name;
-
 
     public:
         static void load_move_mode( const JsonObject &jo, const std::string &src );

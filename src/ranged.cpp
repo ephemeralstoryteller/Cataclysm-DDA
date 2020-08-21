@@ -3,7 +3,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
-#include <cstdlib>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <set>
@@ -12,6 +12,7 @@
 #include <utility>
 #include <vector>
 
+#include "activity_actor.h"
 #include "avatar.h"
 #include "ballistics.h"
 #include "bodypart.h"
@@ -33,15 +34,15 @@
 #include "gun_mode.h"
 #include "input.h"
 #include "item.h"
+#include "item_contents.h"
 #include "item_location.h"
+#include "item_pocket.h"
 #include "itype.h"
 #include "line.h"
 #include "magic.h"
 #include "map.h"
-#include "material.h"
-#include "math_defines.h"
-#include "messages.h"
 #include "memory_fast.h"
+#include "messages.h"
 #include "monster.h"
 #include "morale_types.h"
 #include "mtype.h"
@@ -50,10 +51,11 @@
 #include "options.h"
 #include "output.h"
 #include "panels.h"
+#include "pimpl.h"
 #include "player.h"
-#include "player_activity.h"
 #include "point.h"
 #include "projectile.h"
+#include "ret_val.h"
 #include "rng.h"
 #include "skill.h"
 #include "sounds.h"
@@ -64,6 +66,7 @@
 #include "type_id.h"
 #include "ui_manager.h"
 #include "units.h"
+#include "units_fwd.h"
 #include "value_ptr.h"
 #include "vehicle.h"
 #include "vpart_position.h"
@@ -77,6 +80,7 @@ static const itype_id itype_40x46mm( "40x46mm" );
 static const itype_id itype_40x53mm( "40x53mm" );
 static const itype_id itype_66mm( "66mm" );
 static const itype_id itype_84x246mm( "84x246mm" );
+static const itype_id itype_adv_UPS_off( "adv_UPS_off" );
 static const itype_id itype_arrow( "arrow" );
 static const itype_id itype_bolt( "bolt" );
 static const itype_id itype_brass_catcher( "brass_catcher" );
@@ -84,6 +88,7 @@ static const itype_id itype_flammable( "flammable" );
 static const itype_id itype_m235( "m235" );
 static const itype_id itype_metal_rail( "metal_rail" );
 static const itype_id itype_UPS( "UPS" );
+static const itype_id itype_UPS_off( "UPS_off" );
 
 static const trap_str_id tr_practice_target( "tr_practice_target" );
 
@@ -100,12 +105,17 @@ static const skill_id skill_throw( "throw" );
 
 static const bionic_id bio_railgun( "bio_railgun" );
 static const bionic_id bio_targeting( "bio_targeting" );
+static const bionic_id bio_ups( "bio_ups" );
 
 static const std::string flag_CONSUMABLE( "CONSUMABLE" );
+static const std::string flag_FIRE_TWOHAND( "FIRE_TWOHAND" );
+static const std::string flag_MOUNTABLE( "MOUNTABLE" );
+static const std::string flag_MOUNTED_GUN( "MOUNTED_GUN" );
 static const std::string flag_NEVER_JAMS( "NEVER_JAMS" );
 static const std::string flag_NON_FOULING( "NON-FOULING" );
 static const std::string flag_PRIMITIVE_RANGED_WEAPON( "PRIMITIVE_RANGED_WEAPON" );
 static const std::string flag_RELOAD_AND_SHOOT( "RELOAD_AND_SHOOT" );
+static const std::string flag_RESTRICT_HANDS( "RESTRICT_HANDS" );
 static const std::string flag_UNDERWATER_GUN( "UNDERWATER_GUN" );
 static const std::string flag_VEHICLE( "VEHICLE" );
 
@@ -445,7 +455,7 @@ target_handler::trajectory target_handler::mode_spell( avatar &you, spell &casti
 target_handler::trajectory target_handler::mode_spell( avatar &you, const spell_id &sp,
         bool no_fail, bool no_mana )
 {
-    return mode_spell( you, you.magic.get_spell( sp ), no_fail, no_mana );
+    return mode_spell( you, you.magic->get_spell( sp ), no_fail, no_mana );
 }
 
 static double occupied_tile_fraction( creature_size target_size )
@@ -461,6 +471,9 @@ static double occupied_tile_fraction( creature_size target_size )
             return 0.75;
         case creature_size::huge:
             return 1.0;
+        case creature_size::num_sizes:
+            debugmsg( "ERROR: Invalid Creature size class." );
+            break;
     }
 
     return 0.5;
@@ -479,6 +492,9 @@ double Creature::ranged_target_size() const
                 return occupied_tile_fraction( creature_size::medium );
             case creature_size::huge:
                 return occupied_tile_fraction( creature_size::large );
+            case creature_size::num_sizes:
+                debugmsg( "ERROR: Invalid Creature size class." );
+                break;
         }
     }
     return occupied_tile_fraction( get_size() );
@@ -587,7 +603,7 @@ bool player::handle_gun_damage( item &it )
         int uncork = ( ( 10 * it.ammo_data()->ammo->loudness )
                        + ( it.ammo_data()->ammo->recoil / 2 ) ) / 100;
         uncork = std::pow( uncork, 3 ) * 6.5;
-        for( auto mod : it.gunmods() ) {
+        for( item *mod : it.gunmods() ) {
             if( mod->has_flag( flag_CONSUMABLE ) ) {
                 int dmgamt = uncork / mod->type->gunmod->consume_divisor;
                 int modconsume = mod->type->gunmod->consume_chance;
@@ -680,8 +696,8 @@ bool player::handle_gun_damage( item &it )
 void npc::pretend_fire( npc *source, int shots, item &gun )
 {
     int curshot = 0;
-    if( g->u.sees( *source ) && one_in( 50 ) ) {
-        add_msg( m_info, _( "%s shoots something." ), source->disp_name() );
+    if( one_in( 50 ) ) {
+        add_msg_if_player_sees( *source, m_info, _( "%s shoots something." ), source->disp_name() );
     }
     while( curshot != shots ) {
         if( gun.ammo_consume( gun.ammo_required(), pos() ) != gun.ammo_required() ) {
@@ -692,9 +708,7 @@ void npc::pretend_fire( npc *source, int shots, item &gun )
         item *weapon = &gun;
         const auto data = weapon->gun_noise( shots > 1 );
 
-        if( g->u.sees( *source ) ) {
-            add_msg( m_warning, _( "You hear %s." ), data.sound );
-        }
+        add_msg_if_player_sees( *source, m_warning, _( "You hear %s." ), data.sound );
         curshot++;
         moves -= 100;
     }
@@ -730,10 +744,11 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
         debugmsg( "Attempted to fire zero or negative shots using %s", gun.tname() );
     }
 
+    map &here = get_map();
     // usage of any attached bipod is dependent upon terrain
-    bool bipod = g->m.has_flag_ter_or_furn( "MOUNTABLE", pos() );
+    bool bipod = here.has_flag_ter_or_furn( "MOUNTABLE", pos() );
     if( !bipod ) {
-        if( const optional_vpart_position vp = g->m.veh_at( pos() ) ) {
+        if( const optional_vpart_position vp = here.veh_at( pos() ) ) {
             bipod = vp->vehicle().has_part( pos(), "MOUNTABLE" );
         }
     }
@@ -765,7 +780,7 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
         dispersion.add_range( recoil_total() );
 
         // If this is a vehicle mounted turret, which vehicle is it mounted on?
-        const vehicle *in_veh = has_effect( effect_on_roof ) ? veh_pointer_or_null( g->m.veh_at(
+        const vehicle *in_veh = has_effect( effect_on_roof ) ? veh_pointer_or_null( here.veh_at(
                                     pos() ) ) : nullptr;
 
         auto shot = projectile_attack( make_gun_projectile( gun ), pos(), aim, dispersion, this, in_veh );
@@ -802,7 +817,7 @@ int player::fire_gun( const tripoint &target, int shots, item &gun )
 
         if( shot.missed_by <= .1 ) {
             // TODO: check head existence for headshot
-            g->events().send<event_type::character_gets_headshot>( getID() );
+            get_event_bus().send<event_type::character_gets_headshot>( getID() );
         }
 
         if( shot.hit_critter ) {
@@ -861,8 +876,8 @@ int throw_cost( const player &c, const item &to_throw )
     const int skill_cost = static_cast<int>( ( base_move_cost * ( 20 - throw_skill ) / 20 ) );
     ///\EFFECT_DEX increases throwing speed
     const int dexbonus = c.get_dex();
-    const int encumbrance_penalty = c.encumb( bp_torso ) +
-                                    ( c.encumb( bp_hand_l ) + c.encumb( bp_hand_r ) ) / 2;
+    const int encumbrance_penalty = c.encumb( bodypart_id( "torso" ) ) +
+                                    ( c.encumb( bodypart_id( "hand_l" ) ) + c.encumb( bodypart_id( "hand_r" ) ) ) / 2;
     const float stamina_ratio = static_cast<float>( c.get_stamina() ) / c.get_stamina_max();
     const float stamina_penalty = 1.0 + std::max( ( 0.25f - stamina_ratio ) * 4.0f, 0.0f );
 
@@ -883,7 +898,8 @@ int Character::throw_dispersion_per_dodge( bool add_encumbrance ) const
     // +100 at 8, +80 at 12, +66.6 at 16, +57 at 20, +50 at 24
     // Each 10 encumbrance on either hand is like -1 dex (can bring penalty to +400 per dodge)
     // Maybe TODO: Only use one hand
-    const int encumbrance = add_encumbrance ? encumb( bp_hand_l ) + encumb( bp_hand_r ) : 0;
+    const int encumbrance = add_encumbrance ? encumb( bodypart_id( "hand_l" ) ) + encumb(
+                                bodypart_id( "hand_r" ) ) : 0;
     ///\EFFECT_DEX increases throwing accuracy against targets with good dodge stat
     float effective_dex = 2 + get_dex() / 4.0f - ( encumbrance ) / 40.0f;
     return static_cast<int>( 100.0f / std::max( 1.0f, effective_dex ) );
@@ -925,7 +941,7 @@ int Character::throwing_dispersion( const item &to_throw, Creature *critter,
     }
     // 1 perception per 1 eye encumbrance
     ///\EFFECT_PER decreases throwing accuracy penalty from eye encumbrance
-    dispersion += std::max( 0, ( encumb( bp_eyes ) - get_per() ) * 10 );
+    dispersion += std::max( 0, ( encumb( bodypart_id( "eyes" ) ) - get_per() ) * 10 );
 
     // If throwing blind, we're assuming they mechanically can't achieve the
     // accuracy of a normal throw.
@@ -952,7 +968,7 @@ dealt_projectile_attack player::throw_item( const tripoint &target, const item &
     bool throw_assist = false;
     int throw_assist_str = 0;
     if( is_mounted() ) {
-        auto mons = mounted_creature.get();
+        auto *mons = mounted_creature.get();
         if( mons->mech_str_addition() != 0 ) {
             throw_assist = true;
             throw_assist_str = mons->mech_str_addition();
@@ -1084,7 +1100,7 @@ dealt_projectile_attack player::throw_item( const tripoint &target, const item &
     if( missed_by <= 0.1 && dealt_attack.hit_critter != nullptr ) {
         practice( skill_used, final_xp_mult, MAX_SKILL );
         // TODO: Check target for existence of head
-        g->events().send<event_type::character_gets_headshot>( getID() );
+        get_event_bus().send<event_type::character_gets_headshot>( getID() );
     } else if( dealt_attack.hit_critter != nullptr && missed_by > 0.0f ) {
         practice( skill_used, final_xp_mult / ( 1.0f + missed_by ), MAX_SKILL );
     } else {
@@ -1537,16 +1553,17 @@ int time_to_attack( const Character &p, const itype &firing )
 
 static void cycle_action( item &weap, const tripoint &pos )
 {
+    map &here = get_map();
     // eject casings and linkages in random direction avoiding walls using player position as fallback
-    std::vector<tripoint> tiles = closest_tripoints_first( pos, 1 );
+    std::vector<tripoint> tiles = closest_points_first( pos, 1 );
     tiles.erase( tiles.begin() );
     tiles.erase( std::remove_if( tiles.begin(), tiles.end(), [&]( const tripoint & e ) {
-        return !g->m.passable( e );
+        return !here.passable( e );
     } ), tiles.end() );
     tripoint eject = tiles.empty() ? pos : random_entry( tiles );
 
     // for turrets try and drop casings or linkages directly to any CARGO part on the same tile
-    const optional_vpart_position vp = g->m.veh_at( pos );
+    const optional_vpart_position vp = here.veh_at( pos );
     std::vector<vehicle_part *> cargo;
     if( vp && weap.has_flag( "VEHICLE" ) ) {
         cargo = vp->vehicle().get_parts_at( pos, "CARGO", part_status_flag::any );
@@ -1558,7 +1575,7 @@ static void cycle_action( item &weap, const tripoint &pos )
             weap.put_in( item( casing ).set_flag( "CASING" ), item_pocket::pocket_type::CONTAINER );
         } else {
             if( cargo.empty() ) {
-                g->m.add_item_or_charges( eject, item( casing ) );
+                here.add_item_or_charges( eject, item( casing ) );
             } else {
                 vp->vehicle().add_item( *cargo.front(), item( casing ) );
             }
@@ -1569,14 +1586,14 @@ static void cycle_action( item &weap, const tripoint &pos )
     }
 
     // some magazines also eject disintegrating linkages
-    const auto mag = weap.magazine_current();
+    const item *mag = weap.magazine_current();
     if( mag && mag->type->magazine->linkage ) {
         item linkage( *mag->type->magazine->linkage, calendar::turn, 1 );
         if( weap.gunmod_find( itype_brass_catcher ) ) {
             linkage.set_flag( "CASING" );
             weap.put_in( linkage, item_pocket::pocket_type::CONTAINER );
         } else if( cargo.empty() ) {
-            g->m.add_item_or_charges( eject, linkage );
+            here.add_item_or_charges( eject, linkage );
         } else {
             vp->vehicle().add_item( *cargo.front(), linkage );
         }
@@ -1599,7 +1616,7 @@ item::sound_data item::gun_noise( const bool burst ) const
     }
 
     int noise = type->gun->loudness;
-    for( const auto mod : gunmods() ) {
+    for( const item *mod : gunmods() ) {
         noise += mod->type->gunmod->loudness;
     }
     if( ammo_data() ) {
@@ -1670,7 +1687,7 @@ item::sound_data item::gun_noise( const bool burst ) const
 
 static bool is_driving( const player &p )
 {
-    const optional_vpart_position vp = g->m.veh_at( p.pos() );
+    const optional_vpart_position vp = get_map().veh_at( p.pos() );
     return vp && vp->vehicle().is_moving() && vp->vehicle().player_in_control( p );
 }
 
@@ -1703,7 +1720,15 @@ dispersion_sources player::get_weapon_dispersion( const item &obj ) const
     dispersion_sources dispersion( weapon_dispersion );
     dispersion.add_range( ranged_dex_mod() );
 
-    dispersion.add_range( ( encumb( bp_arm_l ) + encumb( bp_arm_r ) ) / 5.0 );
+    int arm_encumb = 0;
+    // Fake turret NPC does not have arms
+    if( has_part( bodypart_id( "arm_l" ) ) ) {
+        arm_encumb += encumb( bodypart_id( "arm_l" ) );
+    }
+    if( has_part( bodypart_id( "arm_r" ) ) ) {
+        arm_encumb += encumb( bodypart_id( "arm_r" ) );
+    }
+    dispersion.add_range( arm_encumb / 5.0 );
 
     if( is_driving( *this ) ) {
         // get volume of gun (or for auxiliary gunmods the parent gun)
@@ -1794,7 +1819,8 @@ double player::gun_value( const item &weap, int ammo ) const
     int move_cost = time_to_attack( *this, *weap.type );
     if( gun.clip != 0 && gun.clip < 10 ) {
         // TODO: RELOAD_ONE should get a penalty here
-        int reload_cost = gun.reload_time + encumb( bp_hand_l ) + encumb( bp_hand_r );
+        int reload_cost = gun.reload_time + encumb( bodypart_id( "hand_l" ) ) + encumb(
+                              bodypart_id( "hand_r" ) );
         reload_cost /= gun.clip;
         move_cost += reload_cost;
     }
@@ -1861,9 +1887,9 @@ double player::gun_value( const item &weap, int ammo ) const
 
     double gun_value = damage_and_accuracy * capacity_factor;
 
-    add_msg( m_debug, "%s as gun: %.1f total, %.1f dispersion, %.1f damage, %.1f capacity",
-             weap.type->get_id().str(), gun_value, dispersion_factor, damage_factor,
-             capacity_factor );
+    add_msg_debug( "%s as gun: %.1f total, %.1f dispersion, %.1f damage, %.1f capacity",
+                   weap.type->get_id().str(), gun_value, dispersion_factor, damage_factor,
+                   capacity_factor );
     return std::max( 0.0, gun_value );
 }
 
@@ -1876,8 +1902,9 @@ target_handler::trajectory target_ui::run()
         sight_dispersion = you->effective_dispersion( relevant->sight_dispersion() );
     }
 
+    map &here = get_map();
     // Load settings
-    allow_zlevel_shift = g->m.has_zlevels() && get_option<bool>( "FOV_3D" );
+    allow_zlevel_shift = here.has_zlevels() && get_option<bool>( "FOV_3D" );
     snap_to_target = get_option<bool>( "SNAP_TO_TARGET" );
     if( mode == TargetMode::Turrets ) {
         // Due to how cluttered the display would become, disable it by default
@@ -1885,10 +1912,11 @@ target_handler::trajectory target_ui::run()
         draw_turret_lines = vturrets->size() == 1;
     }
 
-    on_out_of_scope cleanup( []() {
-        g->m.invalidate_map_cache( g->u.pos().z + g->u.view_offset.z );
+    avatar &player_character = get_avatar();
+    on_out_of_scope cleanup( [&here, &player_character]() {
+        here.invalidate_map_cache( player_character.pos().z + player_character.view_offset.z );
     } );
-    restore_on_out_of_scope<tripoint> view_offset_prev( g->u.view_offset );
+    restore_on_out_of_scope<tripoint> view_offset_prev( player_character.view_offset );
 
     shared_ptr_fast<game::draw_callback_t> target_ui_cb = make_shared_fast<game::draw_callback_t>(
     [&]() {
@@ -2113,7 +2141,7 @@ void target_ui::init_window_and_input()
 
     w_target = catacurses::newwin( height, width, point( TERMX - width, top ) );
 
-    ctxt = input_context( "TARGET" );
+    ctxt = input_context( "TARGET", keyboard_mode::keychar );
     ctxt.set_iso( true );
     // "ANY_INPUT" should be added before any real help strings
     // Or strings will be written on window border.
@@ -2228,13 +2256,14 @@ bool target_ui::set_cursor_pos( const tripoint &new_pos )
     // Make sure new position is valid or find a closest valid position
     std::vector<tripoint> new_traj;
     tripoint valid_pos = new_pos;
+    map &here = get_map();
     if( new_pos != src ) {
         // On Z axis, make sure we do not exceed map boundaries
         valid_pos.z = clamp( valid_pos.z, -OVERMAP_DEPTH, OVERMAP_HEIGHT );
         // Or current view range
         valid_pos.z = clamp( valid_pos.z - src.z, -fov_3d_z_range, fov_3d_z_range ) + src.z;
 
-        new_traj = g->m.find_clear_path( src, valid_pos );
+        new_traj = here.find_clear_path( src, valid_pos );
         if( range == 1 ) {
             // We should always be able to hit adjacent squares
             if( square_dist( src, valid_pos ) > 1 ) {
@@ -2280,7 +2309,7 @@ bool target_ui::set_cursor_pos( const tripoint &new_pos )
         traj = new_traj;
     } else {
         dst = valid_pos;
-        traj = g->m.find_clear_path( src, dst );
+        traj = here.find_clear_path( src, dst );
     }
 
     if( snap_to_target ) {
@@ -2288,20 +2317,20 @@ bool target_ui::set_cursor_pos( const tripoint &new_pos )
     }
 
     // Make player's sprite flip to face the current target
-    int dx = dst.x - src.x;
-    int dy = dst.y - src.y;
+    point d( dst.xy() - src.xy() );
     if( !tile_iso ) {
-        if( dx > 0 ) {
-            you->facing = FD_RIGHT;
-        } else if( dx < 0 ) {
-            you->facing = FD_LEFT;
+
+        if( d.x > 0 ) {
+            you->facing = FacingDirection::RIGHT;
+        } else if( d.x < 0 ) {
+            you->facing = FacingDirection::LEFT;
         }
     } else {
-        if( dx >= 0 && dy >= 0 ) {
-            you->facing = FD_RIGHT;
+        if( d.x >= 0 && d.y >= 0 ) {
+            you->facing = FacingDirection::RIGHT;
         }
-        if( dy <= 0 && dx <= 0 ) {
-            you->facing = FD_LEFT;
+        if( d.y <= 0 && d.x <= 0 ) {
+            you->facing = FacingDirection::LEFT;
         }
     }
 
@@ -2363,13 +2392,14 @@ void target_ui::update_target_list()
 
 bool target_ui::choose_initial_target( bool reentered, tripoint &new_dst )
 {
+    map &here = get_map();
     // Determine if we had a target and it is still visible
     if( !you->last_target.expired() ) {
         Creature *cr = you->last_target.lock().get();
         if( pl_can_target( cr ) ) {
             // There it is!
             new_dst = cr->pos();
-            you->last_target_pos = g->m.getabs( new_dst );
+            you->last_target_pos = here.getabs( new_dst );
             return true;
         }
     }
@@ -2378,7 +2408,7 @@ bool target_ui::choose_initial_target( bool reentered, tripoint &new_dst )
     // and still can aim at that tile.
     cata::optional<tripoint> local_last_tgt_pos = cata::nullopt;
     if( you->last_target_pos ) {
-        tripoint local = g->m.getlocal( *you->last_target_pos );
+        tripoint local = here.getlocal( *you->last_target_pos );
         if( dist_fn( local ) > range ) {
             // No luck
             you->last_target_pos = cata::nullopt;
@@ -2400,10 +2430,10 @@ bool target_ui::choose_initial_target( bool reentered, tripoint &new_dst )
     // Try to find at least something
     if( targets.empty() ) {
         // The closest practice target
-        const std::vector<tripoint> nearby = closest_tripoints_first( src, range );
+        const std::vector<tripoint> nearby = closest_points_first( src, range );
         const auto target_spot = std::find_if( nearby.begin(), nearby.end(),
-        [this]( const tripoint & pt ) {
-            return g->m.tr_at( pt ).id == tr_practice_target && this->you->sees( pt );
+        [this, &here]( const tripoint & pt ) {
+            return here.tr_at( pt ).id == tr_practice_target && this->you->sees( pt );
         } );
 
         if( target_spot != nearby.end() ) {
@@ -2423,11 +2453,18 @@ bool target_ui::choose_initial_target( bool reentered, tripoint &new_dst )
 
 void target_ui::update_status()
 {
+    std::vector<std::string> msgbuf;
     if( mode == TargetMode::Turrets && turrets_in_range.empty() ) {
         // None of the turrets are in range
         status = Status::OutOfRange;
-    } else if( ( mode == TargetMode::Fire || mode == TargetMode::TurretManual ) && range == 0 ) {
+    } else if( mode == TargetMode::Fire &&
+               ( !gunmode_checks_common( *you, get_map(), msgbuf, relevant->gun_current_mode() ) ||
+                 !gunmode_checks_weapon( *you, get_map(), msgbuf, relevant->gun_current_mode() ) ) ) {
         // Selected gun mode is empty
+        // TODO: it might be some other error, but that's highly unlikely to happen, so a catch-all 'Out of ammo' is fine
+        status = Status::OutOfAmmo;
+    } else if( mode == TargetMode::TurretManual && ( turret->query() != turret_data::status::ready ||
+               !gunmode_checks_common( *you, get_map(), msgbuf, relevant->gun_current_mode() ) ) ) {
         status = Status::OutOfAmmo;
     } else if( ( src == dst ) && !( mode == TargetMode::Spell &&
                                     casting->is_valid_target( spell_target::self ) ) ) {
@@ -2455,7 +2492,7 @@ bool target_ui::pl_can_target( const Creature *cr )
 
 void target_ui::set_last_target()
 {
-    you->last_target_pos = g->m.getabs( dst );
+    you->last_target_pos = get_map().getabs( dst );
     if( dst_critter ) {
         you->last_target = g->shared_from( *dst_critter );
     } else {
@@ -2512,17 +2549,15 @@ void target_ui::cycle_targets( int direction )
 
 void target_ui::set_view_offset( const tripoint &new_offset )
 {
-    int new_x = new_offset.x;
-    int new_y = new_offset.y;
-    int new_z = clamp( new_offset.z, -fov_3d_z_range, fov_3d_z_range );
-    new_z = clamp( new_z + src.z, -OVERMAP_DEPTH, OVERMAP_HEIGHT ) - src.z;
+    tripoint new_( new_offset.xy(), clamp( new_offset.z, -fov_3d_z_range, fov_3d_z_range ) );
+    new_.z = clamp( new_.z + src.z, -OVERMAP_DEPTH, OVERMAP_HEIGHT ) - src.z;
 
-    bool changed_z = you->view_offset.z != new_z;
-    you->view_offset = tripoint( new_x, new_y, new_z );
+    bool changed_z = you->view_offset.z != new_.z;
+    you->view_offset = new_;
     if( changed_z ) {
         // We need to do a bunch of cache updates since we're
         // looking at a different z-level.
-        g->m.invalidate_map_cache( new_z );
+        get_map().invalidate_map_cache( new_.z );
     }
 }
 
@@ -2552,7 +2587,7 @@ void target_ui::recalc_aim_turning_penalty()
     if( lt_ptr ) {
         curr_recoil_pos = lt_ptr->pos();
     } else if( you->last_target_pos ) {
-        curr_recoil_pos = g->m.getlocal( *you->last_target_pos );
+        curr_recoil_pos = get_map().getlocal( *you->last_target_pos );
     } else {
         curr_recoil_pos = src;
     }
@@ -2733,7 +2768,7 @@ void target_ui::draw_terrain_overlay()
                 g->draw_highlight( tile );
             } else {
 #endif
-                g->m.drawsq( g->w_terrain, *you, tile, true, true, center );
+                get_map().drawsq( g->w_terrain, *you, tile, true, true, center );
 #ifdef TILES
             }
 #endif
@@ -3160,4 +3195,93 @@ void target_ui::on_target_accepted( bool harmful )
     } else if( monster *const mon = dynamic_cast<monster *>( lt_ptr.get() ) ) {
         mon->add_effect( effect_hit_by_player, 10_minutes );
     }
+}
+
+bool gunmode_checks_common( avatar &you, const map &m, std::vector<std::string> &messages,
+                            const gun_mode &gmode )
+{
+    bool result = true;
+
+    // Check that passed gun mode is valid and we are able to use it
+    if( !( gmode && you.can_use( *gmode ) ) ) {
+        messages.push_back( string_format( _( "You can't currently fire your %s." ),
+                                           gmode->tname() ) );
+        result = false;
+    }
+
+    const optional_vpart_position vp = m.veh_at( you.pos() );
+    if( vp && vp->vehicle().player_in_control( you ) && ( gmode->is_two_handed( you ) ||
+            gmode->has_flag( flag_FIRE_TWOHAND ) ) ) {
+        messages.push_back( string_format( _( "You can't fire your %s while driving." ),
+                                           gmode->tname() ) );
+        result = false;
+    }
+
+    if( gmode->has_flag( flag_FIRE_TWOHAND ) && ( !you.has_two_arms() ||
+            you.worn_with_flag( flag_RESTRICT_HANDS ) ) ) {
+        messages.push_back( string_format( _( "You need two free hands to fire your %s." ),
+                                           gmode->tname() ) );
+        result = false;
+    }
+
+    return result;
+}
+
+bool gunmode_checks_weapon( avatar &you, const map &m, std::vector<std::string> &messages,
+                            const gun_mode &gmode )
+{
+    bool result = true;
+
+    if( !gmode->ammo_sufficient() && !gmode->has_flag( flag_RELOAD_AND_SHOOT ) ) {
+        if( !gmode->ammo_remaining() ) {
+            messages.push_back( string_format( _( "Your %s is empty!" ), gmode->tname() ) );
+        } else {
+            messages.push_back( string_format( _( "Your %s needs %i charges to fire!" ),
+                                               gmode->tname(), gmode->ammo_required() ) );
+        }
+        result = false;
+    }
+
+    if( gmode->get_gun_ups_drain() > 0 ) {
+        const int ups_drain = gmode->get_gun_ups_drain();
+        const int adv_ups_drain = std::max( 1, ups_drain * 3 / 5 );
+        bool is_mech_weapon = false;
+        if( you.is_mounted() ) {
+            monster *mons = get_player_character().mounted_creature.get();
+            if( !mons->type->mech_weapon.is_empty() ) {
+                is_mech_weapon = true;
+            }
+        }
+        if( !is_mech_weapon ) {
+            if( !( you.has_charges( itype_UPS_off, ups_drain ) ||
+                   you.has_charges( itype_adv_UPS_off, adv_ups_drain ) ||
+                   ( you.has_active_bionic( bio_ups ) &&
+                     you.get_power_level() >= units::from_kilojoule( ups_drain ) ) ) ) {
+                messages.push_back( string_format(
+                                        _( "You need a UPS with at least %2$d charges or an advanced UPS with at least %3$d charges to fire the %1$s!" ),
+                                        gmode->tname(), ups_drain, adv_ups_drain ) );
+                result = false;
+            }
+        } else {
+            if( !you.has_charges( itype_UPS, ups_drain ) ) {
+                messages.push_back( string_format( _( "Your mech has an empty battery, its %s will not fire." ),
+                                                   gmode->tname() ) );
+                result = false;
+            }
+        }
+    }
+
+    if( gmode->has_flag( flag_MOUNTED_GUN ) ) {
+        const bool v_mountable = static_cast<bool>( m.veh_at( you.pos() ).part_with_feature( "MOUNTABLE",
+                                 true ) );
+        bool t_mountable = m.has_flag_ter_or_furn( flag_MOUNTABLE, you.pos() );
+        if( !t_mountable && !v_mountable ) {
+            messages.push_back( string_format(
+                                    _( "You must stand near acceptable terrain or furniture to fire the %s.  A table, a mound of dirt, a broken window, etc." ),
+                                    gmode->tname() ) );
+            result = false;
+        }
+    }
+
+    return result;
 }

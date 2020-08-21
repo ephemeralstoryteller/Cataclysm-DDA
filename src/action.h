@@ -219,6 +219,8 @@ enum action_id : int {
     ACTION_IGNORE_ENEMY,
     /** Whitelist the enemy that triggered safemode */
     ACTION_WHITELIST_ENEMY,
+    /** Open workout menu */
+    ACTION_WORKOUT,
     /** Save the game and quit */
     ACTION_SAVE,
     /** Quicksave the game */
@@ -410,17 +412,6 @@ std::string action_ident( action_id act );
  * @returns true if action has potential to alter world state, otherwise returns false.
  */
 bool can_action_change_worldstate( action_id act );
-
-/**
- * Lookup the action ID assigned to a given key.
- *
- * Looks up a key by character and returns the @ref action_id currently mapped to that key.  If no
- * key is currently mapped then ACTION_NULL is returned instead
- *
- * @param ch The character corresponding to the key to look up
- * @returns The action id of the specified key
- */
-action_id action_from_key( char ch );
 
 /**
  * Request player input of adjacent tile, possibly including vertical tiles

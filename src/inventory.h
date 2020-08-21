@@ -19,7 +19,9 @@
 #include "item.h"
 #include "item_stack.h"
 #include "magic_enchantment.h"
-#include "units.h"
+#include "string_id.h"
+#include "type_id.h"
+#include "units_fwd.h"
 #include "visitable.h"
 
 class Character;
@@ -125,7 +127,7 @@ class inventory : public visitable<inventory>
          * game pointer is not necessary, but if supplied, will ensure no overlap with
          * the player's worn items / weapon
          */
-        void restack( player &p );
+        void restack( Character &p );
         void form_from_zone( map &m, std::unordered_set<tripoint> &zone_pts, const Character *pl = nullptr,
                              bool assign_invlet = true );
         void form_from_map( const tripoint &origin, int range, const Character *pl = nullptr,
@@ -214,8 +216,6 @@ class inventory : public visitable<inventory>
         void reassign_item( item &it, char invlet, bool remove_old = true );
         // Removes invalid invlets, and assigns new ones if assign_invlet is true. Does not update the invlet cache.
         void update_invlet( item &it, bool assign_invlet = true );
-
-        void set_stack_favorite( int position, bool favorite );
 
         invlets_bitset allocated_invlets() const;
 

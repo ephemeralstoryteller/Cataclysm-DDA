@@ -4,6 +4,7 @@
 
 #include <climits>
 #include <cstddef>
+#include <memory>
 #include <set>
 #include <string>
 #include <unordered_set>
@@ -16,6 +17,7 @@
 #include "memory_fast.h"
 #include "optional.h"
 #include "point.h"
+#include "string_id.h"
 #include "type_id.h"
 
 class Character;
@@ -92,6 +94,11 @@ class player_activity
         bool is_multi_type() const;
         /** This replaces the former usage `act.type = ACT_NULL` */
         void set_to_null();
+
+        // This makes player_activity's activity type inherit activity_actor's activity type,
+        // in order to synchronize both, due to possible variablility of actor's activity type
+        // allowed via override of activity_actor::get_type()
+        void sychronize_type_with_actor();
 
         const activity_id &id() const {
             return type;

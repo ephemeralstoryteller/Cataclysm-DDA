@@ -1,28 +1,29 @@
 #include "pathfinding.h"
 
-#include <cstdlib>
 #include <algorithm>
+#include <array>
+#include <cmath>
+#include <cstdlib>
+#include <memory>
 #include <queue>
 #include <set>
-#include <array>
-#include <memory>
 #include <utility>
 #include <vector>
 
 #include "cata_utility.h"
 #include "coordinates.h"
 #include "debug.h"
+#include "line.h"
 #include "map.h"
 #include "mapdata.h"
 #include "optional.h"
+#include "point.h"
 #include "submap.h"
 #include "trap.h"
+#include "type_id.h"
 #include "veh_type.h"
 #include "vehicle.h"
 #include "vpart_position.h"
-#include "line.h"
-#include "type_id.h"
-#include "point.h"
 
 enum astar_state {
     ASL_NONE,
@@ -123,16 +124,15 @@ bool vertical_move_destination( const map &m, tripoint &t )
         return false;
     }
 
-    constexpr int omtileszx = SEEX * 2;
-    constexpr int omtileszy = SEEY * 2;
+    constexpr point omtilesz( SEEX * 2, SEEY * 2 );
     real_coords rc( m.getabs( t.xy() ) );
     const point omtile_align_start(
         m.getlocal( rc.begin_om_pos() )
     );
 
     const auto &pf_cache = m.get_pathfinding_cache_ref( t.z );
-    for( int x = omtile_align_start.x; x < omtile_align_start.x + omtileszx; x++ ) {
-        for( int y = omtile_align_start.y; y < omtile_align_start.y + omtileszy; y++ ) {
+    for( int x = omtile_align_start.x; x < omtile_align_start.x + omtilesz.x; x++ ) {
+        for( int y = omtile_align_start.y; y < omtile_align_start.y + omtilesz.y; y++ ) {
             if( pf_cache.special[x][y] & PF_UPDOWN ) {
                 const tripoint p( x, y, t.z );
                 if( m.has_flag( flag, p ) ) {
@@ -315,9 +315,10 @@ std::vector<tripoint> map::route( const tripoint &f, const tripoint &t,
                 const maptile &tile = maptile_at_internal( p );
                 const auto &terrain = tile.get_ter_t();
                 const auto &furniture = tile.get_furn_t();
+                const auto &field = tile.get_field();
                 const vehicle *veh = veh_at_internal( p, part );
 
-                const int cost = move_cost_internal( furniture, terrain, veh, part );
+                const int cost = move_cost_internal( furniture, terrain, field, veh, part );
                 // Don't calculate bash rating unless we intend to actually use it
                 const int rating = ( bash == 0 || cost != 0 ) ? -1 :
                                    bash_rating_internal( bash, furniture, terrain, false, veh, part );
@@ -351,7 +352,7 @@ std::vector<tripoint> map::route( const tripoint &f, const tripoint &t,
                         } else if( part >= 0 && bash > 0 ) {
                             // Car obstacle that isn't a door
                             // TODO: Account for armor
-                            int hp = veh->parts[part].hp();
+                            int hp = veh->cpart( part ).hp();
                             if( hp / 20 > bash ) {
                                 // Threshold damage thing means we just can't bash this down
                                 layer.state[index] = ASL_CLOSED;
@@ -466,6 +467,27 @@ std::vector<tripoint> map::route( const tripoint &f, const tripoint &t,
                               cur, above );
             }
         }
+        if( cur.z < maxz && parent_terrain.has_flag( TFLAG_RAMP_UP ) &&
+            valid_move( cur, tripoint( cur.xy(), cur.z + 1 ), false, true, true ) ) {
+            auto &layer = pf.get_layer( cur.z + 1 );
+            for( size_t it = 0; it < 8; it++ ) {
+                const tripoint above( cur.x + x_offset[it], cur.y + y_offset[it], cur.z + 1 );
+                pf.add_point( layer.gscore[parent_index] + 4,
+                              layer.score[parent_index] + 4 + 2 * rl_dist( above, t ),
+                              cur, above );
+            }
+        }
+        if( cur.z > minz && parent_terrain.has_flag( TFLAG_RAMP_DOWN ) &&
+            valid_move( cur, tripoint( cur.xy(), cur.z - 1 ), false, true, true ) ) {
+            auto &layer = pf.get_layer( cur.z - 1 );
+            for( size_t it = 0; it < 8; it++ ) {
+                const tripoint below( cur.x + x_offset[it], cur.y + y_offset[it], cur.z - 1 );
+                pf.add_point( layer.gscore[parent_index] + 4,
+                              layer.score[parent_index] + 4 + 2 * rl_dist( below, t ),
+                              cur, below );
+            }
+        }
+
     } while( !done && !pf.empty() );
 
     if( done ) {

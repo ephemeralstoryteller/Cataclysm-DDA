@@ -12,6 +12,7 @@
 #include "advanced_inv_pane.h"
 #include "cursesdef.h"
 
+class advanced_inv_listitem;
 class input_context;
 class item;
 struct advanced_inv_save_state;
@@ -73,7 +74,7 @@ class advanced_inventory
 
         bool inCategoryMode = false;
 
-        int itemsPerPage = 0;
+        int linesPerPage = 0;
         int w_height = 0;
         int w_width = 0;
 
@@ -81,6 +82,7 @@ class advanced_inventory
         int colstart = 0;
 
         bool recalc = false;
+        bool always_recalc = false;
         /**
          * Which panels is active (item moved from there).
          */

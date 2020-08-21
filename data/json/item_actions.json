@@ -276,11 +276,6 @@
   },
   {
     "type": "item_action",
-    "id": "ARTIFACT",
-    "name": { "str": "Use" }
-  },
-  {
-    "type": "item_action",
     "id": "AUTOCLAVE",
     "name": { "str": "Sterilize" }
   },
@@ -896,11 +891,6 @@
   },
   {
     "type": "item_action",
-    "id": "THROWABLE_EXTINGUISHER_ACT",
-    "name": { "str": "Extinguish a fire" }
-  },
-  {
-    "type": "item_action",
     "id": "TOWEL",
     "name": { "str": "Dry/clean yourself" }
   },
@@ -1043,11 +1033,6 @@
     "type": "item_action",
     "id": "unfold_vehicle",
     "name": { "str": "Unfold" }
-  },
-  {
-    "type": "item_action",
-    "id": "ups_based_armor",
-    "name": { "str": "Activate/deactivate" }
   },
   {
     "type": "item_action",

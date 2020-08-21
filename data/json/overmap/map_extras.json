@@ -1,12 +1,5 @@
 [
   {
-    "id": "mx_null",
-    "type": "map_extra",
-    "name": { "str": "Nothing" },
-    "description": "Nothing of interest is here.",
-    "generator": { "generator_method": "null", "generator_id": "mx_null" }
-  },
-  {
     "id": "mx_crater",
     "type": "map_extra",
     "name": { "str": "Crater" },
@@ -391,5 +384,12 @@
     "name": { "str": "Zombie Trap" },
     "description": "Zombie trap.",
     "generator": { "generator_method": "map_extra_function", "generator_id": "mx_city_trap" }
+  },
+  {
+    "id": "mx_reed",
+    "type": "map_extra",
+    "name": { "str": "Reed" },
+    "description": "Water vegetation.",
+    "generator": { "generator_method": "map_extra_function", "generator_id": "mx_reed" }
   }
 ]
