@@ -134,6 +134,8 @@ class inventory_entry
         int get_invlet() const;
         nc_color get_invlet_color() const;
         void update_cache();
+        bool highlight_as_parent = false;
+        bool highlight_as_child = false;
 
     private:
         const item_category *custom_category = nullptr;
@@ -588,7 +590,7 @@ class inventory_selector
         /** @return an entry from all entries by its invlet */
         inventory_entry *find_entry_by_invlet( int invlet ) const;
 
-        inventory_entry *find_entry_by_coordinate( point coordinate ) const;
+        inventory_entry *find_entry_by_coordinate( const point &coordinate ) const;
 
         const std::vector<inventory_column *> &get_all_columns() const {
             return columns;
@@ -596,6 +598,9 @@ class inventory_selector
         std::vector<inventory_column *> get_visible_columns() const;
 
         std::vector< std::pair<inclusive_rectangle<point>, inventory_entry *>> rect_entry_map;
+        /** Highlight parent and contents of selected item.
+        */
+        void highlight();
 
     private:
         // These functions are called from resizing/redraw callbacks of ui_adaptor
